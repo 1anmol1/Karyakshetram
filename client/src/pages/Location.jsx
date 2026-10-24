@@ -59,7 +59,7 @@ export default function Location() {
       <SystemBanners />
       <div className="row as wrapx stack-md" style={{ padding: '20px 28px 40px', gap: 24 }}>
         <div className="col g16 f1" style={{ minWidth: 0 }}>
-          <div className="map-sticky" style={{ height: 380 }}>
+          <div style={{ height: 380, position: 'relative' }}>
             <HexMap features={hex.data?.features.filter((f) => { const [lo, la] = f.geometry.coordinates[0][0]; return Math.abs(la - site.lat) < 0.04 && Math.abs(lo - site.lon) < 0.045; })} selected={cellId} picks={[{ lat: site.lat, lon: site.lon, n: pick ? picks.indexOf(pick) + 1 : '' }]} rings={[{ lat: site.lat, lon: site.lon, km: site.catchment.km }]} comps={comps} center={[site.lat, site.lon]} zoom={14} legend={false} controls={true} />
             <span className="tag maptag" style={{ left: 14, top: 14, background: 'var(--bg)', height: 28 }}><Icon n="map-pin-2-line" s={14} />{site.catchment.km} km {catInfo?.name.toLowerCase() || ''} catchment · {comps.length} competitors</span>
           </div>
