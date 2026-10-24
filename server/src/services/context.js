@@ -20,12 +20,15 @@ export function assumptionsFor(user, category, overrides = {}) {
 }
 
 export async function ownStores(user, category) {
-  if (!user) return { all: [], same: [] };
+  if (!user) return { all: [], same: [], mappedAll: [] };
   const all = await Store.find({ owner: user._id, chain: 'own' }).lean();
   const same = all.filter((s) => s.category === category).map((s) => ({
-    id: String(s._id), name: s.name, lat: s.loc.coordinates[1], lon: s.loc.coordinates[0], revenue: s.annualRevenue, area: undefined, estimated: s.revenueEstimated,
+    id: String(s._id), name: s.name, lat: s.loc.coordinates[1], lon: s.loc.coordinates[0], revenue: s.annualRevenue, area: undefined, estimated: s.revenueEstimated, category: s.category,
   }));
-  return { all, same };
+  const mappedAll = all.map((s) => ({
+    id: String(s._id), name: s.name, lat: s.loc.coordinates[1], lon: s.loc.coordinates[0], revenue: s.annualRevenue || 12000000, area: undefined, estimated: s.revenueEstimated, category: s.category,
+  }));
+  return { all, same, mappedAll };
 }
 
 export async function latestVisit(cell, category) {

@@ -304,21 +304,48 @@ r.post('/compare', validate(z.object({ cells: z.array(z.string()).min(2, 'Pick a
 }));
 
 // ---------------- cannibalisation (own-store availability states)
-r.post('/cannibalisation', requireAuth, validate(z.object({ cellId: z.string(), category: catSchema.optional(), withPicks: z.boolean().default(false), pickCells: z.array(z.string()).max(5).optional(), pickLabels: z.array(z.string().max(40)).max(5).optional() })), asyncH(async (req, res) => {
+r.post('/cannibalisation', requireAuth, validate(z.object({
+  cellId: z.string(),
+  category: catSchema.optional(),
+  withPicks: z.boolean().default(false),
+  pickCells: z.array(z.string()).max(5).optional(),
+  pickLabels: z.array(z.string().max(40)).max(5).optional(),
+  crossCategory: z.boolean().default(false),
+})), asyncH(async (req, res) => {
   const category = resolveCategory(req, req.body.category);
   const cell = state.byId.get(req.body.cellId);
   if (!cell) throw notFound('Location not found');
-  const { all, same } = await ownStores(req.user, category);
-  const base = { category, cell: cell._id, locality: cell.locality, ownStoresTotal: all.length, ownStoresCategory: same.length, estimatedCount: same.filter((s) => s.estimated).length };
+  const { all, same, mappedAll } = await ownStores(req.user, category);
+  const base = {
+    category,
+    cell: cell._id,
+    locality: cell.locality,
+    ownStoresTotal: all.length,
+    ownStoresCategory: same.length,
+    estimatedCount: same.filter((s) => s.estimated).length,
+  };
   if (!all.length) return res.json({ ...base, status: 'no_stores' });
-  if (!same.length) return res.json({ ...base, status: 'different_category', otherCategories: [...new Set(all.map((s) => s.category))].map((k) => catByKey[k]?.name || k) });
+  if (!same.length && !req.body.crossCategory) {
+    return res.json({
+      ...base,
+      status: 'different_category',
+      otherCategories: [...new Set(all.map((s) => s.category))].map((k) => catByKey[k]?.name || k),
+      otherCategoryKeys: [...new Set(all.map((s) => s.category))],
+    });
+  }
+  const storesToUse = same.length ? same : mappedAll;
+  const isCross = same.length === 0 && all.length > 0;
+  base.ownStoresCategory = storesToUse.length;
+  base.estimatedCount = storesToUse.filter((s) => s.estimated).length;
+  base.crossCategoryNotice = isCross;
+
   const el = cell.eligible?.[category];
   if (el && !el.ok) {
     const { alternatives } = await ml.nearestSuitable({ cell: cell._id, category, assumptions: assumptionsFor(req.user, category) });
     return res.json({ ...base, status: 'ineligible', reasons: el.reasons.map((code) => ({ code, message: reasonText(code, cell, category) })), alternatives: alternatives.map(shape) });
   }
   const { site } = await siteFor(req, cell._id, category);
-  const c = await ml.cannibalisation({ site, own: same, category });
+  const c = await ml.cannibalisation({ site, own: storesToUse, category });
   const maxLoss = Math.max(0, ...c.stores.map((s) => s.lossPct));
   const status = c.takenRs < 1000 ? 'no_overlap' : c.netNetworkProfit < 0 || maxLoss > 0.2 ? 'heavy' : 'ok';
   let picks = null;
@@ -333,7 +360,7 @@ r.post('/cannibalisation', requireAuth, validate(z.object({ cellId: z.string(), 
     }
   } else if (req.body.withPicks) {
     const g = req.user.profile.goals || {};
-    const rec = await ml.recommend({ category, constraints: { maxRent: g.maxRent, minSpacingKm: g.minSpacingKm || 1.5, minP10Profit: g.minP10Profit }, assumptions: assumptionsFor(req.user, category), focusAreas: req.user.profile.focusAreas || [], excludeLow: g.excludeLowConfidence !== false, own: same });
+    const rec = await ml.recommend({ category, constraints: { maxRent: g.maxRent, minSpacingKm: g.minSpacingKm || 1.5, minP10Profit: g.minP10Profit }, assumptions: assumptionsFor(req.user, category), focusAreas: req.user.profile.focusAreas || [], excludeLow: g.excludeLowConfidence !== false, own: storesToUse });
     picks = rec.picks.filter((p) => !p.empty).map((p) => ({ label: p.label, cell: p.cell, locality: p.locality, profitExp: p.profit.exp, takenRs: p.cannibalisation?.takenRs || 0, lostMargin: (p.cannibalisation?.takenRs || 0) * p.margin, netNetworkProfit: p.cannibalisation?.netNetworkProfit ?? p.profit.exp }));
   }
   const nearest = [...c.stores].sort((a, b) => a.distKm - b.distKm)[0];

@@ -74,14 +74,14 @@ export default function Location() {
             </div>
           </div>
           {!eligible && <Banner tone="bad" icon="forbid-line" action={<button className="btn out sm" onClick={() => nav(`/check?lat=${site.lat}&lon=${site.lon}`)}>See alternatives</button>}>This cell fails a {catInfo?.name.toLowerCase()} rule: {site.eligible.reasons.join(', ')}.</Banner>}
-          {d.data.visit?.quotedRent && <Banner tone="info" icon="map-pin-user-line">Using quoted rent ₹{d.data.visit.quotedRent} from the site visit by {d.data.visit.author} on {new Date(d.data.visit.createdAt).toLocaleDateString('en-IN')}.</Banner>}
+          {d.data.visit?.quotedRent && <Banner tone="info" icon="map-pin-user-line">Using quoted rent ₹{d.data.visit.quotedRent} / sq ft / mo from the site visit by {d.data.visit.author} on {new Date(d.data.visit.createdAt).toLocaleDateString('en-IN')}.</Banner>}
           <div className="panel pad20 col g16">
             <div className="row g8 s13 wrap"><b>{catInfo?.name} · {n(site.area)} sq ft</b><span className="muted">· Scored {new Date(d.data.scoredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} · model {d.data.modelVersion}{d.data.source !== 'ml' ? ' (placeholder engine)' : ''}</span></div>
             <div className="grid5">
               <Kv k="Revenue P50" v={inr(site.revenue.p50)} sub={`P10 ${inr(site.revenue.p10)} · P90 ${inr(site.revenue.p90)}`} />
               <Kv k="Expected profit" v={inr(site.profit.exp)} sub="per year" />
               <Kv k="Downside (P10)" v={inr(site.profit.p10)} sub={site.profit.p10 > 0 ? 'still positive' : 'loss in a weak year'} />
-              <Kv k="Break-even rent" v={`₹${Math.round(site.breakevenRent)}`} sub={`assumed ₹${site.rent} /sq ft/mo`} />
+              <Kv k="Break-even rent" v={`₹${Math.round(site.breakevenRent)} / sq ft / mo`} sub={`Benchmark ₹${site.rent} / sq ft / mo · Headroom ${site.breakevenRent >= site.rent ? '+' : ''}₹${Math.round(site.breakevenRent - site.rent)}`} />
               <Kv k="Takes from own" v={cn ? inr(cn.takenRs) : '—'} sub={cn ? `${pct(cn.ratio)} of its revenue` : 'No own stores of this category'} />
             </div>
             {ex?.narrative ? <p className="s14" style={{ lineHeight: 1.6 }}>{ex.narrative}</p> : ex?.error ? <ErrorBox compact error={ex.error} /> : <div className="col g8"><Skel h={12} /><Skel h={12} w="80%" /></div>}
@@ -117,15 +117,22 @@ export default function Location() {
           </div>}
           {tab === 'Money' && <div className="row as g16 stack-md">
             <div className="card pad20 col g10 f1"><div className="h4">Yearly P&amp;L at P50</div>
-              {[['Revenue', site.revenue.p50], [`Gross margin (${Math.round(site.margin * 100)}%)`, site.revenue.p50 * site.margin], [`Rent (₹${site.rent} × ${n(site.area)} sq ft × 12)`, -site.rent * site.area * 12], ['Operating cost', -site.opex], ['Expected profit', site.profit.exp]].map(([k, v], i) => <div key={k} className={`row sb s14 ${i === 4 ? 'b' : ''}`} style={{ padding: '8px 0', borderTop: i ? '1px solid var(--line)' : 'none' }}><span className={i === 0 ? 'muted' : ''}>{k}</span><span className="num">{inr(v)}</span></div>)}
+              {[
+                ['Revenue', site.revenue.p50],
+                [`Gross margin (${Math.round(site.margin * 100)}%)`, site.revenue.p50 * site.margin],
+                [`Rent (₹${site.rent} / sq ft / mo · ₹${Math.round(site.rent * site.area).toLocaleString('en-IN')}/mo)`, -site.rent * site.area * 12],
+                ['Operating cost', -site.opex],
+                ['Expected profit', site.profit.exp]
+              ].map(([k, v], i) => <div key={k} className={`row sb s14 ${i === 4 ? 'b' : ''}`} style={{ padding: '8px 0', borderTop: i ? '1px solid var(--line)' : 'none' }}><span className={i === 0 ? 'muted' : ''}>{k}</span><span className="num">{inr(v)}</span></div>)}
               <div className="row sb s13 muted"><span>Capex (one-time)</span><span>{inr(site.capex)} · payback {site.profit.exp > 0 ? `${(site.capex / site.profit.exp).toFixed(1)} yrs` : 'n/a'}</span></div>
               {cn && <div className="row sb s13"><span className="muted">Lost margin at your stores</span><span className="num">−{inr(cn.lostMargin)} · net {inr(cn.netNetworkProfit)}</span></div>}
             </div>
             <div className="card pad20 col g12" style={{ width: 360 }}><div className="h4">What if the rent changes?</div>
-              <div className="row sb s13"><span className="muted">Rent</span><b>₹{rent ?? site.rent} /sq ft/mo</b></div>
+              <div className="row sb s13"><span className="muted">Simulated Rent</span><b>₹{rent ?? site.rent} / sq ft / mo</b></div>
               <input type="range" className="rng" min="10" max={Math.max(400, Math.round(site.breakevenRent * 1.3))} value={rent ?? site.rent} style={{ '--p': `${((rent ?? site.rent) - 10) / (Math.max(400, Math.round(site.breakevenRent * 1.3)) - 10) * 100}%` }} onChange={(e) => setRent(e.target.value)} aria-label="Rent what-if" />
+              <div className="s12 muted">Monthly outflow: <b>₹{Math.round((rent ?? site.rent) * site.area).toLocaleString('en-IN')} / mo</b></div>
               {whatIf ? <div className="col g6 s13"><div className="row sb"><span className="muted">Expected profit</span><b>{inr(site.profit.exp)} → {inr(whatIf.e)}</b></div><div className="row sb"><span className="muted">Downside (P10)</span><b>{inr(site.profit.p10)} → {inr(whatIf.p10)}</b></div><div className="row sb"><span className="muted">Tier</span><span className="row g6"><Tier t={site.tier} />→<Tier t={whatIf.tier} /></span></div><button className="btn ghost sm" onClick={() => setRent(null)}>Reset</button></div>
-                : <span className="s12 muted">Drag to recompute profit and tier instantly (FR-17). Break-even is ₹{Math.round(site.breakevenRent)}.</span>}
+                : <span className="s12 muted">Drag slider to test rent sensitivity. Break-even ceiling is <b>₹{Math.round(site.breakevenRent)} / sq ft / mo</b>.</span>}
             </div>
           </div>}
           <div className="col g10"><div className="h4">Site photos</div><div className="row g10">{[1, 2, 3, 4].map((i) => <div key={i} className="photo f1" style={{ height: 130 }}><Photo seed={i + 10 + cellId.charCodeAt(9)} h={130} caption={i === 1 ? 'Illustration' : ''} /></div>)}</div>
@@ -166,12 +173,104 @@ export function Drivers({ shap }) {
       <span className="b num" style={{ width: 70, textAlign: 'right' }}>{v >= 0 ? '+' : ''}{inr(v)}</span></div>))}</div>;
 }
 
+const STRESS_CONFIG = {
+  competitor500m: {
+    label: 'New Competitor (within 500m)',
+    sub: '-15% customer share shock',
+  },
+  rentUp25: {
+    label: 'Landlord Rent Surge (+25%)',
+    sub: 'Commercial rent hike to ₹ / sq ft / mo',
+  },
+  demandDown15: {
+    label: 'Macro Footfall Drop (-15%)',
+    sub: 'Market-wide consumer spending slump',
+  },
+  marginDown2: {
+    label: 'Margin Compression (-2%)',
+    sub: 'Inflationary supplier cost squeeze',
+  },
+};
+
 export function Stress({ site, onCann, inline }) {
+  const passes = site.stress?.passes ?? 0;
+  const pctPass = (passes / 4) * 100;
+  const tone = passes === 4 ? 'ok' : passes === 3 ? 'ok' : passes === 2 ? 'warn' : 'bad';
+  const verdict =
+    passes === 4
+      ? 'Robust (4/4 Pass)'
+      : passes === 3
+      ? 'Resilient (3/4 Pass)'
+      : passes === 2
+      ? 'Moderate Risk (2/4 Pass)'
+      : `Vulnerable (${passes}/4 Pass)`;
+
   return (
-    <div className={inline ? 'col g10' : 'card pad20 col g10'} style={inline ? undefined : { width: 340 }}>
-      <div className="row sb"><div className="h4">Stress tests</div><span className={`tag ${site.stress.passes >= 3 ? 'ok' : site.stress.passes === 2 ? 'warn' : 'bad'}`}>{site.stress.passes} of 4 pass</span></div>
-      {STRESS_ORDER.map((k) => { const s = site.stress[k]; return <div key={k} className="row g10 s13" style={{ padding: '8px 0', borderTop: '1px solid var(--line)' }}><Icon n={s.pass ? 'checkbox-circle-fill' : 'close-circle-fill'} s={18} c={s.pass ? 'var(--ok)' : 'var(--bad)'} /><span className="f1">{s.label}</span><span className="b nowrap">Tier {s.tier} · {inr(s.exp)}</span></div>; })}
-      {onCann && <button className="btn soft sm" style={{ alignSelf: 'flex-start' }} onClick={onCann}><Icon n="git-merge-line" s={14} />Open cannibalisation</button>}
+    <div className={inline ? 'col g12' : 'card pad20 col g14 stress-scorecard'} style={inline ? undefined : { width: 360 }}>
+      <div className="row sb ac">
+        <div className="row g8 ac">
+          <Icon n="shield-check-line" s={18} c="var(--accent)" />
+          <h4 className="h4" style={{ margin: 0 }}>Stress Test Scorecard</h4>
+        </div>
+        <span className={`tag ${tone} b`}>{verdict}</span>
+      </div>
+
+      {/* Visual resilience progress bar */}
+      <div className="col g4">
+        <div style={{ height: 6, background: 'var(--surface2)', borderRadius: 99, overflow: 'hidden' }}>
+          <div
+            style={{
+              height: '100%',
+              width: `${pctPass}%`,
+              background: passes >= 3 ? 'var(--ok)' : passes === 2 ? 'var(--warn)' : 'var(--bad)',
+              borderRadius: 99,
+              transition: 'width 0.4s ease',
+            }}
+          />
+        </div>
+        <span className="s11 muted">Simulates 4 severe downside macro &amp; competitive shocks</span>
+      </div>
+
+      {/* 4 Scenarios list */}
+      <div className="col g8">
+        {STRESS_ORDER.map((k) => {
+          const s = site.stress?.[k];
+          if (!s) return null;
+          const conf = STRESS_CONFIG[k] || { label: s.label, sub: '' };
+          return (
+            <div key={k} className="stress-scenario-row row sb ac g10">
+              <div className="row g10 ac f1" style={{ minWidth: 0 }}>
+                <Icon
+                  n={s.pass ? 'checkbox-circle-fill' : 'close-circle-fill'}
+                  s={18}
+                  c={s.pass ? 'var(--ok)' : 'var(--bad)'}
+                />
+                <div className="col g2" style={{ minWidth: 0 }}>
+                  <span className="b s13 truncate">{conf.label}</span>
+                  <span className="s11 muted truncate">{conf.sub}</span>
+                </div>
+              </div>
+              <div className="row g8 ac" style={{ flexShrink: 0 }}>
+                <Tier t={s.tier} />
+                <span className={`b s12 num ${s.pass ? '' : 'badc'}`}>
+                  {inr(s.exp)}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {onCann && (
+        <button
+          className="btn out sm"
+          style={{ width: '100%', justifyContent: 'center' }}
+          onClick={onCann}
+        >
+          <Icon n="git-merge-line" s={14} c="var(--accent)" />
+          Simulate Network Cannibalisation
+        </button>
+      )}
     </div>
   );
 }
@@ -236,7 +335,7 @@ function VisitModal({ open, onClose, cellId, category, onSaved }) {
     catch (er) { setErrs(fieldErrors(er)); }
   };
   return <Modal open={open} onClose={onClose} title="Site-visit observations">
-    <div className="col g12"><div className="grid2"><Field label="Quoted rent" value={v.rent} onChange={(x) => setV({ ...v, rent: x })} suffix="₹/sq ft/mo" error={errs.quotedRent} /><Field label="Footfall count" value={v.footfall} onChange={(x) => setV({ ...v, footfall: x })} suffix="per hour" error={errs.footfall} /></div>
+    <div className="col g12"><div className="grid2"><Field label="Quoted rent" value={v.rent} onChange={(x) => setV({ ...v, rent: x })} suffix="₹ / sq ft / mo" error={errs.quotedRent} /><Field label="Footfall count" value={v.footfall} onChange={(x) => setV({ ...v, footfall: x })} suffix="per hour" error={errs.footfall} /></div>
       <div className="field"><label>Notes</label><textarea className="ta" value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} placeholder="Frontage, parking, visibility…" /></div>{errs.notes && <span className="help err">{errs.notes}</span>}
       <button className="btn ink" style={{ alignSelf: 'flex-start' }} onClick={send}>Save observation</button></div>
   </Modal>;

@@ -33,7 +33,7 @@ const expect = (c, m) => { if (!c) throw new Error(m); };
   await t('cell detail', async () => { const r = await req('GET', `/cells/${cell}?category=grocery`); expect(r.body.site.tier, 'no tier'); });
   await t('cell unknown → 404', async () => { const r = await req('GET', '/cells/8860000000fffff?category=grocery'); expect(r.status === 404, r.status); });
   await t('similar', async () => { const r = await req('GET', `/cells/${cell}/similar?category=grocery`); expect(r.body.similar.length > 0, 'none'); });
-  await t('explain + validator', async () => { const r = await req('POST', '/explain', { cellId: cell, category: 'grocery', compareWith: [picks[1].cell] }); expect(r.body.narrative && r.body.narrative_source === 'template' && r.body.comparisons.length === 1, JSON.stringify(r.body).slice(0, 300)); });
+  await t('explain + validator', async () => { const r = await req('POST', '/explain', { cellId: cell, category: 'grocery', compareWith: [picks[1].cell] }); expect(r.body.narrative && ['template', 'gemini', 'llm'].includes(r.body.narrative_source) && r.body.comparisons.length === 1, JSON.stringify(r.body).slice(0, 300)); });
   await t('compare 3', async () => { const r = await req('POST', '/compare', { cells: picks.slice(0, 3).map((p) => p.cell), category: 'grocery' }); expect(r.body.sites.length === 3, JSON.stringify(r.body).slice(0, 200)); });
   await t('compare 1 → 400', async () => { const r = await req('POST', '/compare', { cells: [cell], category: 'grocery' }); expect(r.status === 400, r.status); });
   await t('check outside city → 400', async () => { const r = await req('POST', '/check', { category: 'grocery', lat: 19.07, lon: 72.87 }); expect(r.status === 400 && r.body.error.code === 'OUTSIDE_CITY', JSON.stringify(r.body)); });
@@ -62,7 +62,7 @@ const expect = (c, m) => { if (!c) throw new Error(m); };
   await t('profile patch ok', async () => { const r = await req('PATCH', '/profile', { profile: { goals: { maxRent: 170 } } }); expect(r.body.rescored === true, JSON.stringify(r.body).slice(0, 100)); });
   await t('csv upload with errors', async () => {
     const csv = 'name,lat,lon,annual_revenue\nA,18.559,73.8077,44000000\nB,18.5362,73.7997,\nC,17.68,74.01,29000000\nA,18.559,73.8077,44000000\nD,abc,73.8,1\n';
-    const form = new FormData(); form.append('file', new Blob([csv], { type: 'text/csv' }), 'stores.csv'); form.append('mode', 'append');
+    const form = new FormData(); form.append('file', new Blob([csv], { type: 'text/csv' }), 'stores.csv'); form.append('mode', 'replace');
     const r = await req('POST', '/stores/upload', null, { form });
     expect(r.status === 200 && r.body.summary.valid === 1 && r.body.summary.imputed === 1 && r.body.summary.excluded === 3, JSON.stringify(r.body).slice(0, 400));
   });

@@ -194,6 +194,39 @@ const calcDistKm = (lat1, lon1, lat2, lon2) => {
   return Number(Math.hypot((lat2 - lat1) * 110.6, (lon2 - lon1) * 105.4).toFixed(2));
 };
 
+// Persistent module-level and sessionStorage cache for AI summary
+const summaryMemoryCache = new Map();
+
+function getCachedSummary(key) {
+  if (!key) return null;
+  if (summaryMemoryCache.has(key)) return summaryMemoryCache.get(key);
+  try {
+    const raw = sessionStorage.getItem(`ks_summary_${key}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      summaryMemoryCache.set(key, parsed);
+      return parsed;
+    }
+  } catch {}
+  return null;
+}
+
+function setCachedSummary(key, val) {
+  if (!key || !val) return;
+  summaryMemoryCache.set(key, val);
+  try {
+    sessionStorage.setItem(`ks_summary_${key}`, JSON.stringify(val));
+  } catch {}
+}
+
+function clearCachedSummary(key) {
+  if (!key) return;
+  summaryMemoryCache.delete(key);
+  try {
+    sessionStorage.removeItem(`ks_summary_${key}`);
+  } catch {}
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { category, catInfo, locality, setLocality, setPicks, compare, toggleCompare, categories } = useApp();
@@ -205,7 +238,6 @@ export default function Dashboard() {
     maxRent: goals.maxRent || Math.round(220 * (catInfo?.rentFactor || 1)),
     conf: new Set(['High', 'Medium']),
     hideEmpty: true,
-    minP10: goals.minP10Profit || 0,
     spacing: goals.minSpacingKm || 1.5,
     page: 1,
   });
@@ -242,7 +274,6 @@ export default function Dashboard() {
   });
   const [bizBusy, setBizBusy] = useState(false);
   const [bizErr, setBizErr] = useState('');
-  const summaryCache = useRef({});
 
   // Search input state
   const [searchQ, setSearchQ] = useState(locality?.name || '');
@@ -319,7 +350,6 @@ export default function Dashboard() {
       constraints: {
         maxRent: Number(qf.maxRent) || undefined,
         minSpacingKm: Number(qf.spacing) || 1.5,
-        minP10Profit: Number(qf.minP10) || 0,
       },
       excludeLow,
       grid,
@@ -334,7 +364,7 @@ export default function Dashboard() {
         if (e.code !== 'ABORTED') setRec({ loading: false, error: e });
       });
     return () => ctrl.abort();
-  }, [category, locality?.name, qf.maxRent, qf.conf, qf.hideEmpty, qf.minP10, qf.spacing, retry, grid]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [category, locality?.name, qf.maxRent, qf.conf, qf.hideEmpty, qf.spacing, retry, grid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const reqCat = category === 'all' ? 'grocery' : category;
@@ -384,20 +414,35 @@ export default function Dashboard() {
       return;
     }
     const cellKey = best.cell;
-    // Keep summary cached per location; only re-fetch if we don't have it or if user clicked refresh (retry > 0)
-    if (summaryCache.current[cellKey] && retry === 0) {
-      setSummary(summaryCache.current[cellKey]);
-      return;
+    const filterKey = `${cellKey}_${category}_${Array.from(filters.tiers).sort().join('')}_${Array.from(filters.conf).sort().join('')}_${filters.maxRent}_${filters.spacing}_${filters.hideEmpty}`;
+
+    // Re-use cached summary when navigating back; only fetch new if missing or user clicked refresh (retry > 0)
+    if (retry === 0) {
+      const cached = getCachedSummary(filterKey);
+      if (cached) {
+        setSummary(cached);
+        return;
+      }
     }
+
     setSummary({ loading: true });
     const reqCat = category === 'all' ? 'grocery' : category;
     api('/explain', { method: 'POST', body: { cellId: cellKey, category: reqCat } })
       .then((r) => {
-        summaryCache.current[cellKey] = r;
+        setCachedSummary(filterKey, r);
         setSummary(r);
       })
       .catch((e) => setSummary({ error: e }));
-  }, [best?.cell, retry]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    best?.cell,
+    category,
+    filters.tiers,
+    filters.conf,
+    filters.maxRent,
+    filters.spacing,
+    filters.hideEmpty,
+    retry,
+  ]);
 
   const pins = displayPicks
     .filter((p) => !p.empty)
@@ -522,11 +567,11 @@ export default function Dashboard() {
     });
 
   const activeFilters =
-    (filters.tiers.size !== 2 ? 1 : 0) +
-    (filters.conf.size !== 2 ? 1 : 0) +
+    (filters.tiers.size !== 3 ? 1 : 0) +
+    (filters.conf.size !== 3 ? 1 : 0) +
     (filters.hideEmpty ? 1 : 0) +
-    (filters.minP10 > 0 ? 1 : 0) +
-    1;
+    (filters.maxRent !== (goals.maxRent || Math.round(220 * (catInfo?.rentFactor || 1))) ? 1 : 0) +
+    (filters.spacing !== 1.5 ? 1 : 0);
 
   // Format user's own added stores to shop schema
   const userStoreShops = useMemo(() => {
@@ -678,14 +723,14 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Collapsible Filter Section as a single animated card */}
+        {/* Collapsible Filter Section with Preserved Essential Filters */}
         <div className={`collapsible-filters-wrap ${filterOpen ? 'open' : ''}`}>
           <div className="wrapx" style={{ maxWidth: 1040, margin: '0 auto' }}>
             <div className="card pad20 filter-card-content col g16">
               <div className="row sb ac wrap g8">
                 <div className="row g8 ac">
                   <Icon n="equalizer-line" s={18} c="var(--accent)" />
-                  <h3 className="h4">Search &amp; Scoring Filters</h3>
+                  <h3 className="h4">Essential Search &amp; Scoring Filters</h3>
                   <span className="tag ok">{activeFilters} filters active</span>
                 </div>
                 <div className="row g8 ac">
@@ -698,7 +743,6 @@ export default function Dashboard() {
                         maxRent: goals.maxRent || Math.round(220 * (catInfo?.rentFactor || 1)),
                         conf: new Set(['High', 'Medium']),
                         hideEmpty: true,
-                        minP10: 0,
                         spacing: 1.5,
                         page: 1,
                       })
@@ -723,7 +767,7 @@ export default function Dashboard() {
                 {/* Column 1: Tiers & Confidence */}
                 <div className="col g12 pad12 panel">
                   <div className="col g6">
-                    <span className="s12 b">Tiers shown on map</span>
+                    <span className="s12 b">Viability Tiers on Map</span>
                     <div className="row g6">
                       {['A', 'B', 'C'].map((t) => (
                         <button
@@ -737,10 +781,11 @@ export default function Dashboard() {
                         </button>
                       ))}
                     </div>
+                    <span className="s11 muted">High-profit (A), Moderate (B), Emerging (C)</span>
                   </div>
 
                   <div className="col g6" style={{ marginTop: 4 }}>
-                    <span className="s12 b">Confidence level</span>
+                    <span className="s12 b">Confidence Level</span>
                     <div className="row g6">
                       {['High', 'Medium', 'Low'].map((c) => (
                         <button
@@ -754,25 +799,16 @@ export default function Dashboard() {
                         </button>
                       ))}
                     </div>
+                    <span className="s11 muted">Statistical certainty from mobility &amp; demographic sample</span>
                   </div>
-
-                  <button
-                    type="button"
-                    className="row sb s12 ac"
-                    style={{ marginTop: 6 }}
-                    onClick={() => setFilters({ ...filters, hideEmpty: !filters.hideEmpty })}
-                  >
-                    <span className="b">Hide empty-market sites</span>
-                    <span className={`tgl sm ${filters.hideEmpty ? 'on' : ''}`} />
-                  </button>
                 </div>
 
-                {/* Column 2: Max Rent & Minimum Downside Profit */}
+                {/* Column 2: Max Rent Ceiling */}
                 <div className="col g12 pad12 panel">
                   <div className="col g6">
                     <div className="row sb s12">
-                      <span className="b">Max rent limit</span>
-                      <span className="tag acc num">₹{filters.maxRent} /sq ft/mo</span>
+                      <span className="b">Max Commercial Rent</span>
+                      <span className="tag acc num">₹{filters.maxRent} / sq ft / mo</span>
                     </div>
                     <input
                       type="range"
@@ -790,34 +826,12 @@ export default function Dashboard() {
                       onChange={(e) => setFilters({ ...filters, maxRent: Number(e.target.value) })}
                       aria-label="Max rent"
                     />
-                    <span className="s11 muted">Affordable rent ceiling for candidate cells</span>
+                    <span className="s11 muted">Affordable real-estate ceiling for candidate cells</span>
                   </div>
 
-                  <div className="col g6" style={{ marginTop: 4 }}>
+                  <div className="col g6" style={{ marginTop: 6 }}>
                     <div className="row sb s12">
-                      <span className="b">Min downside (P10) profit</span>
-                      <span className="tag num">{inr(filters.minP10)}</span>
-                    </div>
-                    <input
-                      type="range"
-                      className="rng"
-                      min="0"
-                      max="3000000"
-                      step="100000"
-                      value={filters.minP10}
-                      style={{ '--p': `${(filters.minP10 / 3000000) * 100}%` }}
-                      onChange={(e) => setFilters({ ...filters, minP10: Number(e.target.value) })}
-                      aria-label="Minimum P10 profit"
-                    />
-                    <span className="s11 muted">Guarantees safety in 10th percentile stress scenarios</span>
-                  </div>
-                </div>
-
-                {/* Column 3: Spacing & Resolution */}
-                <div className="col g12 pad12 panel">
-                  <div className="col g6">
-                    <div className="row sb s12">
-                      <span className="b">Spacing between picks</span>
+                      <span className="b">Inter-Store Spacing</span>
                       <span className="tag num">{filters.spacing} km</span>
                     </div>
                     <input
@@ -831,27 +845,31 @@ export default function Dashboard() {
                       onChange={(e) => setFilters({ ...filters, spacing: Number(e.target.value) })}
                       aria-label="Spacing"
                     />
-                    <span className="s11 muted">Prevents self-cannibalisation between recommended picks</span>
+                    <span className="s11 muted">Prevents cannibalisation between top recommendations</span>
+                  </div>
+                </div>
+
+                {/* Column 3: Market Feasibility */}
+                <div className="col g12 pad12 panel" style={{ justifyContent: 'space-between' }}>
+                  <div className="col g8">
+                    <span className="s12 b">Market Feasibility Filter</span>
+                    <button
+                      type="button"
+                      className="row sb s12 ac panel pad10"
+                      style={{ cursor: 'pointer', background: 'var(--bg)' }}
+                      onClick={() => setFilters({ ...filters, hideEmpty: !filters.hideEmpty })}
+                    >
+                      <div className="col g2" style={{ textAlign: 'left' }}>
+                        <span className="b">Hide low-footfall sites</span>
+                        <span className="s11 muted">Excludes unpopulated / non-commercial periphery</span>
+                      </div>
+                      <span className={`tgl sm ${filters.hideEmpty ? 'on' : ''}`} />
+                    </button>
                   </div>
 
-                  <div className="col g6" style={{ marginTop: 6 }}>
-                    <span className="s12 b">H3 Grid Resolution</span>
-                    <div className="row g6">
-                      <button
-                        type="button"
-                        className={`chip ${grid === 'res8' ? 'on' : ''}`}
-                        onClick={() => setGrid('res8')}
-                      >
-                        Res 8 (~450m)
-                      </button>
-                      <button
-                        type="button"
-                        className={`chip ${grid === 'res7' ? 'on' : ''}`}
-                        onClick={() => setGrid('res7')}
-                      >
-                        Res 7 (~1.2km)
-                      </button>
-                    </div>
+                  <div className="col g4 s11 muted pad8" style={{ background: 'var(--surface2)', borderRadius: 10 }}>
+                    <span className="row g6 b"><Icon n="shield-check-line" s={14} c="var(--accent)" /> Feasible Model Sync</span>
+                    <span>Filters apply directly to H3 Res 8 polygon ranking and the ML recommendation engine.</span>
                   </div>
                 </div>
               </div>
@@ -1008,7 +1026,7 @@ export default function Dashboard() {
                           <Tier t={p.tier} />
                         </span>
                         <div className="row g12 s12 ac">
-                          <span className="muted">Rent ₹<b className="num" style={{ color: 'var(--text)' }}>{p.rent}</b></span>
+                          <span className="muted">Rent ₹<b className="num" style={{ color: 'var(--text)' }}>{p.rent}</b> / sq ft / mo</span>
                           <span className="b price-md num" style={{ color: 'var(--accent2)' }}>{inr(p.profit?.exp || 0)}/yr</span>
                         </div>
                       </div>
@@ -1033,7 +1051,7 @@ export default function Dashboard() {
                     <th>Tier</th>
                     <th>Expected profit</th>
                     <th>P10 profit</th>
-                    <th>Rent</th>
+                    <th>Rent (₹ / sq ft / mo)</th>
                     <th>Stress</th>
                   </tr>
                 </thead>
@@ -1060,31 +1078,19 @@ export default function Dashboard() {
 
         {/* right: Add your business + AI summary + Karyakshetra insights */}
         <aside className="col g12" style={{ width: 340 }}>
-          {/* Simple Business Button redirecting to /business page */}
+          {/* Business Button in dark shade of chatbot */}
           <button
-            className="btn out sm"
-            style={{
-              width: '100%',
-              height: 44,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0 16px',
-              borderRadius: 14,
-              background: 'var(--surface)',
-              border: '1.5px solid var(--line)',
-              transition: 'all 0.22s ease',
-            }}
+            className="btn-business-dark"
             onClick={() => nav('/business')}
             title="Manage business, formats, unit economics, and store locations"
           >
-            <span className="row g8 b s14" style={{ color: 'var(--text)' }}>
-              <Icon n="building-2-line" s={18} c="var(--accent)" />
+            <span className="row g8 ac b s14" style={{ color: '#FFFFFF' }}>
+              <Icon n="building-2-fill" s={18} c="#FFFFFF" />
               Business
             </span>
-            <span className="row g6 s12 muted ac">
+            <span className="biz-tag">
               {myStores.length > 0 ? `${myStores.length} store${myStores.length > 1 ? 's' : ''}` : 'Configure'}
-              <Icon n="arrow-right-s-line" s={16} />
+              <Icon n="arrow-right-s-line" s={16} c="#FFFFFF" />
             </span>
           </button>
 
@@ -1097,12 +1103,16 @@ export default function Dashboard() {
                 className="iconbtn"
                 style={{ width: 30, height: 30 }}
                 onClick={() => {
-                  if (best?.cell) delete summaryCache.current[best.cell];
+                  if (best?.cell) {
+                    const filterKey = `${best.cell}_${category}_${Array.from(filters.tiers).sort().join('')}_${Array.from(filters.conf).sort().join('')}_${filters.maxRent}_${filters.spacing}_${filters.hideEmpty}`;
+                    clearCachedSummary(filterKey);
+                  }
                   setRetry((x) => x + 1);
                 }}
+                title="Regenerate AI summary"
                 aria-label="Refresh summary"
               >
-                <Icon n="refresh-line" s={15} c="var(--muted)" />
+                <Icon n="refresh-line" s={15} c="var(--muted)" className={summary?.loading ? 'spin' : ''} />
               </button>
             </div>
             {(!summary || summary.loading) && rec.loading && (
