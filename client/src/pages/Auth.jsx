@@ -71,7 +71,7 @@ export default function Auth({ mode }) {
       const u = signup
         ? await register({ name: f.name, email: f.email, password: f.password, acceptTerms: true })
         : await login(f.email, f.password, f.remember);
-      if (!u.profile?.completed) nav(`/onboarding/${u.profile?.onboardingStep || 1}`);
+      if (!u.profile?.completed) nav('/onboarding');
       else nav(next && next.startsWith('/') ? next : '/app');
     } catch (err) {
       const fe = fieldErrors(err);

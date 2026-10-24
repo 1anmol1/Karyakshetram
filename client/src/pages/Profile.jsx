@@ -27,12 +27,47 @@ export default function Profile() {
   const done = (msg, r) => { setLastSaved(new Date()); toast(r?.rescored ? `${msg} · saved searches will re-score` : msg); };
 
   // ----- business
-  const [biz, setBiz] = useState({ name: user.name, businessName: p.businessName || '', role: p.role, focusAreas: (p.focusAreas || []).join(', '), grid: p.grid || 'res8' });
+  const [biz, setBiz] = useState({
+    name: user.name,
+    businessName: p.businessName || '',
+    businessActivity: p.businessActivity || '',
+    businessType: p.businessType || '',
+    challengesNote: p.challengesNote || '',
+    role: p.role,
+    focusAreas: (p.focusAreas || []).join(', '),
+    grid: p.grid || 'res8',
+  });
   const [bizErr, setBizErr] = useState({});
-  const bizDirty = biz.name !== user.name || biz.businessName !== (p.businessName || '') || biz.role !== p.role || biz.grid !== (p.grid || 'res8') || biz.focusAreas !== (p.focusAreas || []).join(', ');
+  const bizDirty =
+    biz.name !== user.name ||
+    biz.businessName !== (p.businessName || '') ||
+    biz.businessActivity !== (p.businessActivity || '') ||
+    biz.businessType !== (p.businessType || '') ||
+    biz.challengesNote !== (p.challengesNote || '') ||
+    biz.role !== p.role ||
+    biz.grid !== (p.grid || 'res8') ||
+    biz.focusAreas !== (p.focusAreas || []).join(', ');
+
   const saveBiz = async () => {
-    try { const r = await saveProfile({ name: biz.name, profile: { businessName: biz.businessName, role: biz.role, grid: biz.grid, focusAreas: biz.focusAreas.split(',').map((s) => s.trim()).filter(Boolean) } }); setBizErr({}); done('Business details saved', r); }
-    catch (e) { setBizErr(fieldErrors(e)); toast(e.message, { tone: 'bad', icon: 'error-warning-line' }); }
+    try {
+      const r = await saveProfile({
+        name: biz.name,
+        profile: {
+          businessName: biz.businessName,
+          businessActivity: biz.businessActivity,
+          businessType: biz.businessType,
+          challengesNote: biz.challengesNote,
+          role: biz.role,
+          grid: biz.grid,
+          focusAreas: biz.focusAreas.split(',').map((s) => s.trim()).filter(Boolean),
+        },
+      });
+      setBizErr({});
+      done('Business details saved', r);
+    } catch (e) {
+      setBizErr(fieldErrors(e));
+      toast(e.message, { tone: 'bad', icon: 'error-warning-line' });
+    }
   };
   // ----- category change
   const [catModal, setCatModal] = useState(false);
@@ -115,16 +150,72 @@ export default function Profile() {
           <Sec refs={refs} id="personal"><Collapse open={section === 'personal'} title={<><Icon n="user-line" s={18} />Personal</>}>
             <div className="grid2"><Field label="Full name" value={biz.name} onChange={(v) => setBiz({ ...biz, name: v })} error={bizErr.name} /><Field label="Email" value={user.email} disabled help="Contact support to change your email" /></div>
             <Bar dirty={biz.name !== user.name} onSave={saveBiz} onDiscard={() => setBiz({ ...biz, name: user.name })} /></Collapse></Sec>
-          <Sec refs={refs} id="business"><Collapse open={section === 'business' || section === ''} title={<><Icon n="building-2-line" s={18} />Business</>} right={!bizDirty && lastSaved ? <span className="tag ok"><Icon n="check-line" s={12} />Saved</span> : null}>
-            <div className="grid3">
-              <Field label="Business name" value={biz.businessName} onChange={(v) => setBiz({ ...biz, businessName: v })} error={bizErr['profile.businessName']} />
-              <div className="field"><label>Category</label><button className="input" style={{ justifyContent: 'space-between' }} onClick={() => setCatModal(true)}><span className="row g8"><Icon n={cat?.icon} s={16} c="var(--accent)" />{cat?.name}</span><Icon n="shuffle-line" s={16} c="var(--muted)" /></button></div>
-              <Field label="Role" value={biz.role} onChange={(v) => setBiz({ ...biz, role: v })} options={Object.entries(ROLE_LABEL).map(([value, label]) => ({ value, label }))} />
-              <Field label="City" value="Pune & PCMC" disabled />
-              <Field label="Focus areas" value={biz.focusAreas} onChange={(v) => setBiz({ ...biz, focusAreas: v })} help="Comma-separated localities; empty = whole city" error={bizErr['profile.focusAreas.0'] || bizErr['profile.focusAreas.1']} />
-              <Field label="Grid" value={biz.grid} onChange={(v) => setBiz({ ...biz, grid: v })} options={[{ value: 'res8', label: 'Standard · H3 res 8' }, { value: 'res7', label: 'Coarse · H3 res 7' }]} />
-            </div>
-            <Bar dirty={bizDirty} onSave={saveBiz} onDiscard={() => setBiz({ name: user.name, businessName: p.businessName || '', role: p.role, focusAreas: (p.focusAreas || []).join(', '), grid: p.grid || 'res8' })} /></Collapse></Sec>
+          <Sec refs={refs} id="business">
+            <Collapse open={section === 'business' || section === ''} title={<><Icon n="building-2-line" s={18} />Business &amp; Venture</>} right={!bizDirty && lastSaved ? <span className="tag ok"><Icon n="check-line" s={12} />Saved</span> : null}>
+              <div className="grid3">
+                <Field label="Company name" value={biz.businessName} onChange={(v) => setBiz({ ...biz, businessName: v })} error={bizErr['profile.businessName']} placeholder="Name of your company" />
+                <div className="field"><label>Primary Category</label><button className="input" style={{ justifyContent: 'space-between' }} onClick={() => setCatModal(true)}><span className="row g8"><Icon n={cat?.icon} s={16} c="var(--accent)" />{cat?.name}</span><Icon n="shuffle-line" s={16} c="var(--muted)" /></button></div>
+                <Field label="Role" value={biz.role} onChange={(v) => setBiz({ ...biz, role: v })} options={Object.entries(ROLE_LABEL).map(([value, label]) => ({ value, label }))} />
+                <Field label="City" value="Pune & PCMC" disabled />
+                <Field label="Focus areas" value={biz.focusAreas} onChange={(v) => setBiz({ ...biz, focusAreas: v })} help="Comma-separated localities; empty = whole city" error={bizErr['profile.focusAreas.0'] || bizErr['profile.focusAreas.1']} />
+                <Field label="Grid resolution" value={biz.grid} onChange={(v) => setBiz({ ...biz, grid: v })} options={[{ value: 'res8', label: 'Standard · H3 res 8' }, { value: 'res7', label: 'Coarse · H3 res 7' }]} />
+              </div>
+
+              <div className="grid2" style={{ marginTop: 14 }}>
+                <Field label="What your business does" value={biz.businessActivity} onChange={(v) => setBiz({ ...biz, businessActivity: v })} placeholder="e.g. Specialty cafe roasting artisan coffee..." />
+                <Field label="Type of your business / Format" value={biz.businessType} onChange={(v) => setBiz({ ...biz, businessType: v })} placeholder="e.g. High-street outlet with takeaway counter" />
+              </div>
+
+              {p.categories?.length > 0 && (
+                <div className="col g8" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
+                  <label className="s12 b muted">Selected Business Sectors</label>
+                  <div className="row g6 wrap">
+                    {p.categories.map((cKey) => {
+                      const cInfo = categories.find((c) => c.key === cKey);
+                      return (
+                        <span key={cKey} className="tag acc" style={{ padding: '4px 10px', fontSize: 12 }}>
+                          <Icon n={cInfo?.icon || 'store-2-line'} s={13} /> {cInfo?.name || cKey}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {(p.challenges?.length > 0 || biz.challengesNote) && (
+                <div className="col g8" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
+                  <label className="s12 b muted">Retail Challenges &amp; Expansion Hurdles</label>
+                  <Field label="Key expansion challenge note" value={biz.challengesNote} onChange={(v) => setBiz({ ...biz, challengesNote: v })} placeholder="e.g. High commercial rent, unpredictable footfall..." />
+                  {p.challenges?.length > 0 && (
+                    <div className="row g6 wrap" style={{ marginTop: 6 }}>
+                      {p.challenges.map((ch) => (
+                        <span key={ch} className="tag warn" style={{ padding: '4px 10px', fontSize: 12 }}>
+                          <Icon n="error-warning-line" s={13} /> {ch}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <Bar
+                dirty={bizDirty}
+                onSave={saveBiz}
+                onDiscard={() =>
+                  setBiz({
+                    name: user.name,
+                    businessName: p.businessName || '',
+                    businessActivity: p.businessActivity || '',
+                    businessType: p.businessType || '',
+                    challengesNote: p.challengesNote || '',
+                    role: p.role,
+                    focusAreas: (p.focusAreas || []).join(', '),
+                    grid: p.grid || 'res8',
+                  })
+                }
+              />
+            </Collapse>
+          </Sec>
           <Sec refs={refs} id="stores"><Collapse open={section === 'stores'} title={<><Icon n="store-2-line" s={18} />My stores <span className="tag">{stores?.length ?? '…'}</span></>} right={<span className="hide-sm s12 muted">CSV: name, lat, lon, annual_revenue</span>}>
             <div className="row g8 wrap" style={{ marginBottom: 12 }}><label className="btn out sm"><Icon n="upload-cloud-2-line" s={14} />Replace all (CSV)<input ref={fileRef} type="file" accept=".csv" hidden onChange={(e) => upload(e.target.files[0], 'replace')} /></label>
               <label className="btn out sm"><Icon n="add-line" s={14} />Append from CSV<input type="file" accept=".csv" hidden onChange={(e) => upload(e.target.files[0], 'append')} /></label>

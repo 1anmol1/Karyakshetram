@@ -23,13 +23,13 @@ function RequireAuth({ children, onboarded = true }) {
   const loc = useLocation();
   if (!ready) return <Splash />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
-  if (onboarded && !user.profile?.completed) return <Navigate to={`/onboarding/${user.profile?.onboardingStep || 1}`} replace />;
+  if (onboarded && !user.profile?.completed) return <Navigate to="/onboarding" replace />;
   return children;
 }
 function PublicOnly({ children }) {
   const { user, ready } = useAuth();
   if (!ready) return <Splash />;
-  if (user) return <Navigate to={user.profile?.completed ? '/app' : `/onboarding/${user.profile?.onboardingStep || 1}`} replace />;
+  if (user) return <Navigate to={user.profile?.completed ? '/app' : '/onboarding'} replace />;
   return children;
 }
 
@@ -41,6 +41,7 @@ export default function App() {
       <Route path="/signup" element={<PublicOnly><Auth mode="signup" /></PublicOnly>} />
       <Route path="/trust" element={<Trust />} />
       <Route path="/guide" element={<Guide />} />
+      <Route path="/onboarding" element={<RequireAuth onboarded={false}><Onboarding /></RequireAuth>} />
       <Route path="/onboarding/:step" element={<RequireAuth onboarded={false}><Onboarding /></RequireAuth>} />
       <Route element={<RequireAuth><AppShell /></RequireAuth>}>
         <Route path="/app" element={<Dashboard />} />

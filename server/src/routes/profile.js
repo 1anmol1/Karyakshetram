@@ -14,9 +14,14 @@ const LOCS = LOCALITIES.map((l) => l.name);
 const patch = z.object({
   name: z.string().trim().min(2).max(80).optional(),
   profile: z.object({
-    businessName: z.string().trim().min(2, 'Enter your business or brand name').max(120).optional(),
+    businessName: z.string().trim().max(120).optional(),
+    businessActivity: z.string().trim().max(300).optional(),
+    businessType: z.string().trim().max(300).optional(),
+    categories: z.array(z.string()).optional(),
+    challengesNote: z.string().trim().max(500).optional(),
+    challenges: z.array(z.string()).optional(),
     role: z.enum(['expansion_manager', 'finance_analyst', 'regional_head', 'independent_owner']).optional(),
-    category: z.string().refine((k) => !!catByKey[k], 'Choose a business category').optional(),
+    category: z.string().optional(),
     city: z.literal('pune', { errorMap: () => ({ message: 'Only Pune & PCMC is live. Kolhapur, Nashik and Nagpur are coming soon.' }) }).optional(),
     focusAreas: z.array(z.string().refine((l) => LOCS.includes(l), 'Unknown locality')).max(40).optional(),
     grid: z.enum(['res8', 'res7']).optional(),
@@ -47,7 +52,7 @@ const patch = z.object({
 });
 
 export function defaultsFor(key) {
-  const c = catByKey[key];
+  const c = catByKey[key] || catByKey.grocery;
   return {
     format: { areaSqft: c.areaSqft, margin: c.margin, opex: c.opex, capex: c.capex, staff: 10, extras: Object.fromEntries(c.fields.map((f) => [f.key, f.default])), drivers: {} },
     goals: { budget: c.capex * 5, maxRent: Math.min(1000, Math.round(220 * c.rentFactor)), minSpacingKm: Math.min(10, Math.max(1.5, c.catchmentKm * 0.75)), minP10Profit: 0, k: 5, risk: 'balanced', excludeLowConfidence: true },
@@ -59,15 +64,26 @@ r.get('/', (req, res) => res.json({ user: req.user }));
 r.patch('/', validate(patch), asyncH(async (req, res) => {
   const u = req.user, b = req.body, p = b.profile || {};
   if (b.name) u.name = b.name;
+  if (!p.category && p.categories?.length) {
+    p.category = p.categories[0];
+  }
   const prevCat = u.profile.category;
-  for (const k of ['businessName', 'role', 'category', 'city', 'focusAreas', 'grid', 'hasStores', 'competitorBrands', 'onboardingStep', 'completed']) if (p[k] !== undefined) u.profile[k] = p[k];
-  if (p.category && (p.category !== prevCat) && (b.resetForCategory || !u.profile.format?.areaSqft)) {
-    const d = defaultsFor(p.category);
-    u.profile.format = d.format; u.profile.goals = d.goals;
+  for (const k of ['businessName', 'businessActivity', 'businessType', 'categories', 'challengesNote', 'challenges', 'role', 'category', 'city', 'focusAreas', 'grid', 'hasStores', 'competitorBrands', 'onboardingStep', 'completed']) {
+    if (p[k] !== undefined) u.profile[k] = p[k];
+  }
+  const activeCat = u.profile.category || 'grocery';
+  if ((p.category && (p.category !== prevCat)) || !u.profile.format?.areaSqft || p.completed) {
+    if (!u.profile.format?.areaSqft || b.resetForCategory) {
+      const d = defaultsFor(activeCat);
+      u.profile.format = d.format;
+      u.profile.goals = d.goals;
+    }
   }
   if (p.format) { u.profile.format = { ...(u.profile.format?.toObject?.() || u.profile.format || {}), ...p.format }; }
   if (p.goals) { u.profile.goals = { ...(u.profile.goals?.toObject?.() || u.profile.goals || {}), ...p.goals }; }
-  if (p.completed && !u.profile.category) throw bad('Choose a business category first', 'profile.category');
+  if (p.completed && !u.profile.category) {
+    u.profile.category = 'grocery';
+  }
   u.markModified('profile');
   await u.save();
   clearUserCaches(String(u._id));
