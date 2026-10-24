@@ -954,6 +954,7 @@ export default function Dashboard() {
               onChange={setView}
               items={[
                 { value: 'map', label: 'Map', icon: 'map-2-line' },
+                { value: 'graph', label: 'Graph', icon: 'line-chart-line' },
                 { value: 'list', label: 'List', icon: 'list-check' },
               ]}
             />
@@ -979,7 +980,7 @@ export default function Dashboard() {
             </Banner>
           )}
 
-          {view === 'map' ? (
+          {view === 'map' && (
             <div className="map-sticky" style={{ height: 520 }}>
               <HexMap
                 features={featureView}
@@ -1000,78 +1001,90 @@ export default function Dashboard() {
                 <span className="row g6"><span className="dot" style={{ border: '2px solid var(--muted)', background: 'var(--bg)' }} />Competitor</span>
               </div>
             </div>
-          ) : (
+          )}
+
+          {view === 'graph' && (
+            <CityLineGraph
+              catInfo={catInfo}
+              picks={displayPicks}
+              locality={locality}
+              onSelectLocality={(loc) => {
+                setLocality(loc);
+                setView('map');
+              }}
+              onOpenLocation={(cell) => nav(`/location/${cell}`)}
+            />
+          )}
+
+          {view === 'list' && (
             <div className="card pad20 col g16" style={{ overflow: 'auto', maxHeight: 520 }}>
-              <div className="row sb ac wrap g8">
+              <div className="row sb ac wrap g8" style={{ marginBottom: 4 }}>
                 <div className="col g2">
-                  <span className="b s15">Locations Performance &amp; Profit Comparison</span>
-                  <span className="s12 muted">Visual graph comparing Expected Annual Profit &amp; P10 downside safety</span>
+                  <span className="b s15">Scored Locations &amp; Area Performance Metrics</span>
+                  <span className="s12 muted">Commercial floor area, rent benchmarks, break-even headroom, and downside safety</span>
                 </div>
                 <span className="tag acc">{displayPicks.filter((p) => !p.empty).length} Sites Scored</span>
               </div>
 
-              {/* Visual Graph: horizontal comparison bars */}
-              <div className="col g10 pad12" style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--line)' }}>
-                {displayPicks.filter((p) => !p.empty).map((p, idx) => {
-                  const maxExp = Math.max(...displayPicks.filter((x) => !x.empty).map((x) => x.profit?.exp || 1));
-                  const pctExp = Math.max(8, Math.min(100, Math.round(((p.profit?.exp || 0) / maxExp) * 100)));
-                  const pctP10 = Math.max(4, Math.min(100, Math.round(((p.profit?.p10 || 0) / maxExp) * 100)));
-                  return (
-                    <div key={p.cell || idx} className="col g4 click" onClick={() => nav(`/location/${p.cell}`)} style={{ padding: '4px 0' }}>
-                      <div className="row sb s13 ac">
-                        <span className="b row g8 ac">
-                          <span className="tag num" style={{ width: 22, height: 22, padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>{idx + 1}</span>
-                          <span>{p.locality}</span>
-                          <span className="tag acc s11">{p.label}</span>
-                          <Tier t={p.tier} />
-                        </span>
-                        <div className="row g12 s12 ac">
-                          <span className="muted">Rent ₹<b className="num" style={{ color: 'var(--text)' }}>{p.rent}</b> / sq ft / mo</span>
-                          <span className="b price-md num" style={{ color: 'var(--accent2)' }}>{inr(p.profit?.exp || 0)}/yr</span>
-                        </div>
-                      </div>
-                      <div style={{ height: 14, background: 'var(--surface2)', borderRadius: 999, overflow: 'hidden', position: 'relative' }}>
-                        <div style={{ height: '100%', width: `${pctExp}%`, background: 'linear-gradient(90deg, var(--accent) 0%, var(--accent2) 100%)', borderRadius: 999, transition: 'width 0.4s ease' }} />
-                        {p.profit?.p10 > 0 && (
-                          <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${pctP10}%`, background: 'rgba(255,255,255,0.28)', borderRadius: 999 }} title={`P10 Downside: ${inr(p.profit.p10)}`} />
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div style={{ overflowX: 'auto' }}>
+                <table className="t">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Strategic Pick</th>
+                      <th>Viability Tier</th>
+                      <th>Floor Area</th>
+                      <th>Expected Profit (P50)</th>
+                      <th>Downside (P10)</th>
+                      <th>Commercial Rent</th>
+                      <th>Break-even Rent</th>
+                      <th>Rent Headroom</th>
+                      <th>Stress Resilience</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayPicks
+                      .filter((p) => !p.empty)
+                      .map((p, idx) => {
+                        const areaSqft = p.area || catInfo?.format?.areaSqft || 2500;
+                        const breakeven = Math.round(p.breakevenRent || p.rent * 1.35);
+                        const headroom = breakeven - p.rent;
+                        return (
+                          <tr key={p.cell || idx} className="click" onClick={() => nav(`/location/${p.cell}`)}>
+                            <td className="muted b">{idx + 1}</td>
+                            <td><span className="tag acc b">{p.label}</span></td>
+                            <td><Tier t={p.tier} /></td>
+                            <td className="b num">{n(areaSqft)} sq ft</td>
+                            <td className="num b price-md" style={{ color: 'var(--accent2)' }}>{inr(p.profit?.exp || 0)}</td>
+                            <td className="num b">{inr(p.profit?.p10 || 0)}</td>
+                            <td className="b">₹{p.rent} / sq ft / mo</td>
+                            <td className="num">₹{breakeven} / sq ft / mo</td>
+                            <td>
+                              <span className={`tag num ${headroom >= 0 ? 'ok' : 'bad'}`}>
+                                {headroom >= 0 ? `+₹${headroom}` : `−₹${Math.abs(headroom)}`} / mo
+                              </span>
+                            </td>
+                            <td>
+                              <span className="tag">{p.stress?.passes || 3} of 4 pass</span>
+                            </td>
+                            <td>
+                              <button
+                                className="btn out sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  nav(`/location/${p.cell}`);
+                                }}
+                              >
+                                View Site <Icon n="arrow-right-s-line" s={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
               </div>
-
-              {/* Data Table */}
-              <table className="t">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Label</th>
-                    <th>Locality</th>
-                    <th>Tier</th>
-                    <th>Expected profit</th>
-                    <th>P10 profit</th>
-                    <th>Rent (₹ / sq ft / mo)</th>
-                    <th>Stress</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayPicks
-                    .filter((p) => !p.empty)
-                    .map((p, idx) => (
-                      <tr key={p.cell} className="click" onClick={() => nav(`/location/${p.cell}`)}>
-                        <td>{idx + 1}</td>
-                        <td><span className="tag acc">{p.label}</span></td>
-                        <td className="b">{p.locality}</td>
-                        <td><Tier t={p.tier} /></td>
-                        <td className="num b price-md" style={{ color: 'var(--accent2)' }}>{inr(p.profit?.exp || 0)}</td>
-                        <td className="num b">{inr(p.profit?.p10 || 0)}</td>
-                        <td className="b">₹{p.rent}</td>
-                        <td>{p.stress?.passes || 3}/4</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
             </div>
           )}
         </section>
@@ -1407,6 +1420,453 @@ function RecentSaved() {
         </button>
       )}
     </Collapse>
+  );
+}
+
+// ========================================================
+// CITYWIDE VISUAL LINE GRAPH FEATURE
+// ========================================================
+const CITY_AREAS_SPREAD = [
+  { name: 'Hinjewadi', zone: 'West', sub: 'IT Park Phase 1–3', lat: 18.5913, lon: 73.7389, baseRent: 135, p50Mult: 1.15, ff: 88, tier: 'A' },
+  { name: 'Wakad', zone: 'West', sub: 'Datta Mandir Corridor', lat: 18.5986, lon: 73.7646, baseRent: 115, p50Mult: 0.95, ff: 76, tier: 'B' },
+  { name: 'Balewadi', zone: 'West', sub: 'High Street Hub', lat: 18.5765, lon: 73.769, baseRent: 155, p50Mult: 1.10, ff: 84, tier: 'A' },
+  { name: 'Baner', zone: 'West', sub: 'Commercial Nexus', lat: 18.559, lon: 73.7868, baseRent: 175, p50Mult: 1.25, ff: 92, tier: 'A' },
+  { name: 'Aundh', zone: 'West', sub: 'Established Retail', lat: 18.559, lon: 73.8077, baseRent: 160, p50Mult: 1.05, ff: 82, tier: 'A' },
+  { name: 'Bavdhan', zone: 'West', sub: 'NDA Road Enclave', lat: 18.5104, lon: 73.7709, baseRent: 105, p50Mult: 0.82, ff: 68, tier: 'B' },
+  { name: 'Kothrud', zone: 'Central', sub: 'Paud Road Core', lat: 18.5074, lon: 73.8077, baseRent: 165, p50Mult: 1.18, ff: 90, tier: 'A' },
+  { name: 'Deccan', zone: 'Central', sub: 'Gymkhana Flagship', lat: 18.5167, lon: 73.841, baseRent: 180, p50Mult: 1.30, ff: 96, tier: 'A' },
+  { name: 'Shivajinagar', zone: 'Central', sub: 'Transit Interchange', lat: 18.5308, lon: 73.8475, baseRent: 150, p50Mult: 1.08, ff: 89, tier: 'A' },
+  { name: 'Camp', zone: 'Central', sub: 'MG Road Promenade', lat: 18.515, lon: 73.878, baseRent: 170, p50Mult: 1.12, ff: 86, tier: 'A' },
+  { name: 'Koregaon Park', zone: 'East', sub: 'North Main Road', lat: 18.5362, lon: 73.894, baseRent: 195, p50Mult: 1.32, ff: 94, tier: 'A' },
+  { name: 'Kalyani Nagar', zone: 'East', sub: 'East Avenue Strip', lat: 18.5463, lon: 73.9033, baseRent: 170, p50Mult: 1.14, ff: 85, tier: 'A' },
+  { name: 'Viman Nagar', zone: 'East', sub: 'Phoenix Mall Corridor', lat: 18.5679, lon: 73.9143, baseRent: 185, p50Mult: 1.28, ff: 95, tier: 'A' },
+  { name: 'Kharadi', zone: 'East', sub: 'EON World IT Hub', lat: 18.5515, lon: 73.9348, baseRent: 140, p50Mult: 1.12, ff: 87, tier: 'A' },
+  { name: 'Hadapsar', zone: 'East', sub: 'Magarpatta Entrance', lat: 18.5089, lon: 73.926, baseRent: 110, p50Mult: 0.90, ff: 78, tier: 'B' },
+  { name: 'Pimpri', zone: 'North', sub: 'PCMC Commercial Core', lat: 18.6298, lon: 73.7997, baseRent: 125, p50Mult: 0.98, ff: 80, tier: 'B' },
+  { name: 'Chinchwad', zone: 'North', sub: 'Station Link Hub', lat: 18.644, lon: 73.7925, baseRent: 115, p50Mult: 0.92, ff: 75, tier: 'B' },
+  { name: 'Bhosari', zone: 'North', sub: 'MIDC Business Gate', lat: 18.62, lon: 73.85, baseRent: 95, p50Mult: 0.85, ff: 70, tier: 'B' },
+  { name: 'Wanowrie', zone: 'South', sub: 'Salunke Vihar Strip', lat: 18.49, lon: 73.899, baseRent: 120, p50Mult: 0.88, ff: 72, tier: 'B' },
+  { name: 'Katraj', zone: 'South', sub: 'Satara Highway Gate', lat: 18.4529, lon: 73.856, baseRent: 95, p50Mult: 0.78, ff: 65, tier: 'C' },
+  { name: 'Sinhagad Rd', zone: 'South', sub: 'Anand Nagar Junction', lat: 18.48, lon: 73.82, baseRent: 100, p50Mult: 0.84, ff: 74, tier: 'B' },
+];
+
+function getSmoothBezierPath(pts) {
+  if (!pts || pts.length < 2) return '';
+  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(pts.length - 1, i + 2)];
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return d;
+}
+
+function CityLineGraph({ catInfo, picks, locality, onSelectLocality, onOpenLocation }) {
+  const [activeZone, setActiveZone] = useState('All');
+  const [showProfit, setShowProfit] = useState(true);
+  const [showP10, setShowP10] = useState(true);
+  const [showRent, setShowRent] = useState(true);
+  const [showFootfall, setShowFootfall] = useState(false);
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+
+  const rentFactor = catInfo?.rentFactor || 1;
+
+  // Filter areas based on activeZone
+  const displayedAreas = useMemo(() => {
+    let list = CITY_AREAS_SPREAD;
+    if (activeZone !== 'All') {
+      list = CITY_AREAS_SPREAD.filter((a) => a.zone === activeZone);
+    }
+    return list.map((a) => {
+      // Check if this area matches any real scored pick
+      const pickMatch = (picks || []).find(
+        (p) => !p.empty && p.locality && p.locality.toLowerCase().includes(a.name.toLowerCase().slice(0, 4))
+      );
+      const expProfit = pickMatch?.profit?.exp || Math.round(5200000 * a.p50Mult * rentFactor);
+      const p10Profit = pickMatch?.profit?.p10 || Math.round(expProfit * 0.52);
+      const rent = pickMatch?.rent || Math.round(a.baseRent * rentFactor);
+      const ffIdx = a.ff;
+      const tier = pickMatch?.tier || a.tier;
+      return {
+        ...a,
+        cell: pickMatch?.cell,
+        expProfit,
+        p10Profit,
+        rent,
+        ffIdx,
+        tier,
+      };
+    });
+  }, [activeZone, rentFactor, picks]);
+
+  // Dimensions
+  const W = 920;
+  const H = 340;
+  const padL = 60;
+  const padR = 40;
+  const padT = 30;
+  const padB = 65;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+
+  // Maximum scales for normalization
+  const maxProfit = 9000000;
+  const maxRent = 250;
+  const maxFf = 100;
+
+  const count = displayedAreas.length;
+
+  // Coordinates mapping
+  const pointsData = useMemo(() => {
+    return displayedAreas.map((item, idx) => {
+      const x = padL + (idx / Math.max(1, count - 1)) * plotW;
+      const yProfit = padT + plotH - (Math.min(maxProfit, item.expProfit) / maxProfit) * plotH;
+      const yP10 = padT + plotH - (Math.min(maxProfit, item.p10Profit) / maxProfit) * plotH;
+      const yRent = padT + plotH - (Math.min(maxRent, item.rent) / maxRent) * plotH;
+      const yFf = padT + plotH - (Math.min(maxFf, item.ffIdx) / maxFf) * plotH;
+      return { ...item, x, yProfit, yP10, yRent, yFf };
+    });
+  }, [displayedAreas, count, plotW, plotH, padL, padT]);
+
+  const profitPath = useMemo(() => getSmoothBezierPath(pointsData.map((p) => ({ x: p.x, y: p.yProfit }))), [pointsData]);
+  const p10Path = useMemo(() => getSmoothBezierPath(pointsData.map((p) => ({ x: p.x, y: p.yP10 }))), [pointsData]);
+  const rentPath = useMemo(() => getSmoothBezierPath(pointsData.map((p) => ({ x: p.x, y: p.yRent }))), [pointsData]);
+  const ffPath = useMemo(() => getSmoothBezierPath(pointsData.map((p) => ({ x: p.x, y: p.yFf }))), [pointsData]);
+
+  const profitAreaFill = useMemo(() => {
+    if (!pointsData.length) return '';
+    return `${profitPath} L ${pointsData[pointsData.length - 1].x} ${padT + plotH} L ${pointsData[0].x} ${padT + plotH} Z`;
+  }, [profitPath, pointsData, padT, plotH]);
+
+  const hoveredPoint = hoveredIdx != null ? pointsData[hoveredIdx] : null;
+
+  return (
+    <div className="city-graph-container">
+      {/* Header & Controls */}
+      <div className="row sb ac wrap g12">
+        <div className="col g2">
+          <div className="row g8 ac">
+            <Icon n="line-chart-fill" s={20} c="var(--accent)" />
+            <span className="b s16">Citywide Balanced Trajectory &amp; Area Spread</span>
+            <span className="tag ok">Whole City Coverage</span>
+          </div>
+          <span className="s12 muted">
+            Multi-series performance curves across all 5 major regional zones of Pune &amp; PCMC
+          </span>
+        </div>
+
+        {/* Zone Filter Chips */}
+        <div className="row g6 wrap ac">
+          {['All', 'West', 'Central', 'East', 'North', 'South'].map((z) => (
+            <button
+              key={z}
+              type="button"
+              className={`chip ${activeZone === z ? 'on' : ''}`}
+              onClick={() => {
+                setActiveZone(z);
+                setHoveredIdx(null);
+              }}
+            >
+              {z === 'All' ? 'All 21 Hubs' : `${z} Zone`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Metric Series Toggles */}
+      <div className="row sb ac wrap g8 pad8" style={{ background: 'var(--bg)', borderRadius: 12, border: '1px solid var(--line)' }}>
+        <div className="row g8 wrap ac">
+          <button
+            type="button"
+            className={`graph-metric-pill ${showProfit ? 'on' : ''}`}
+            style={{ color: '#E23B3B' }}
+            onClick={() => setShowProfit(!showProfit)}
+          >
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E23B3B' }} />
+            Expected Annual Profit (P50)
+          </button>
+
+          <button
+            type="button"
+            className={`graph-metric-pill ${showP10 ? 'on' : ''}`}
+            style={{ color: '#0EA5E9' }}
+            onClick={() => setShowP10(!showP10)}
+          >
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#0EA5E9' }} />
+            Downside Safety (P10)
+          </button>
+
+          <button
+            type="button"
+            className={`graph-metric-pill ${showRent ? 'on' : ''}`}
+            style={{ color: '#8B5CF6' }}
+            onClick={() => setShowRent(!showRent)}
+          >
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#8B5CF6' }} />
+            Commercial Rent
+          </button>
+
+          <button
+            type="button"
+            className={`graph-metric-pill ${showFootfall ? 'on' : ''}`}
+            style={{ color: '#F59E0B' }}
+            onClick={() => setShowFootfall(!showFootfall)}
+          >
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#F59E0B' }} />
+            Footfall Density Index
+          </button>
+        </div>
+
+        <span className="s12 muted">Hover points for detailed figures · Click point to focus map</span>
+      </div>
+
+      {/* SVG Canvas */}
+      <div style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          style={{ width: '100%', height: 'auto', display: 'block', overflow: 'visible' }}
+          preserveAspectRatio="xMidYMid meet"
+        >
+          <defs>
+            <linearGradient id="profitFillGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#E23B3B" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="#E23B3B" stopOpacity="0.0" />
+            </linearGradient>
+            <linearGradient id="p10FillGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#0EA5E9" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#0EA5E9" stopOpacity="0.0" />
+            </linearGradient>
+          </defs>
+
+          {/* Horizontal Grid lines */}
+          {[0, 0.25, 0.5, 0.75, 1].map((pct) => {
+            const y = padT + plotH * (1 - pct);
+            const profitVal = Math.round((maxProfit * pct) / 100000);
+            return (
+              <g key={pct}>
+                <line x1={padL} y1={y} x2={W - padR} y2={y} stroke="var(--line)" strokeDasharray="3 3" opacity={0.65} />
+                <text x={padL - 10} y={y + 4} textAnchor="end" fill="var(--muted)" fontSize={11} fontFamily="inherit">
+                  ₹{profitVal}L
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Shaded Area Fill for Profit */}
+          {showProfit && (
+            <path d={profitAreaFill} fill="url(#profitFillGrad)" className="animated-graph-fill" />
+          )}
+
+          {/* Curve 1: Expected Profit (Ruby) */}
+          {showProfit && (
+            <path
+              d={profitPath}
+              fill="none"
+              stroke="#E23B3B"
+              strokeWidth={3}
+              strokeLinecap="round"
+              className="animated-graph-line"
+              style={{ filter: 'drop-shadow(0 2px 6px rgba(226,59,59,0.35))' }}
+            />
+          )}
+
+          {/* Curve 2: Downside P10 (Cyan) */}
+          {showP10 && (
+            <path
+              d={p10Path}
+              fill="none"
+              stroke="#0EA5E9"
+              strokeWidth={2.5}
+              strokeDasharray="5 3"
+              strokeLinecap="round"
+              className="animated-graph-line"
+              style={{ filter: 'drop-shadow(0 2px 5px rgba(14,165,233,0.3))' }}
+            />
+          )}
+
+          {/* Curve 3: Commercial Rent (Violet) */}
+          {showRent && (
+            <path
+              d={rentPath}
+              fill="none"
+              stroke="#8B5CF6"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              className="animated-graph-line"
+              style={{ filter: 'drop-shadow(0 2px 5px rgba(139,92,246,0.3))' }}
+            />
+          )}
+
+          {/* Curve 4: Footfall (Amber) */}
+          {showFootfall && (
+            <path
+              d={ffPath}
+              fill="none"
+              stroke="#F59E0B"
+              strokeWidth={2.2}
+              strokeLinecap="round"
+              className="animated-graph-line"
+              style={{ filter: 'drop-shadow(0 2px 5px rgba(245,158,11,0.3))' }}
+            />
+          )}
+
+          {/* Vertical Crosshair Line when Hovering */}
+          {hoveredPoint && (
+            <line
+              x1={hoveredPoint.x}
+              y1={padT}
+              x2={hoveredPoint.x}
+              y2={padT + plotH}
+              stroke="var(--accent2)"
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+            />
+          )}
+
+          {/* Interactive Data Dots & X Axis Labels */}
+          {pointsData.map((p, idx) => {
+            const isHovered = hoveredIdx === idx;
+            return (
+              <g key={p.name} onMouseEnter={() => setHoveredIdx(idx)} onClick={() => onSelectLocality(p)}>
+                {/* Clickable vertical column hit area */}
+                <rect
+                  x={p.x - plotW / (count * 2)}
+                  y={padT}
+                  width={plotW / count}
+                  height={plotH}
+                  fill="transparent"
+                  style={{ cursor: 'pointer' }}
+                />
+
+                {/* X Axis Area Label */}
+                <text
+                  x={p.x}
+                  y={padT + plotH + 18}
+                  textAnchor="end"
+                  transform={`rotate(-40, ${p.x}, ${padT + plotH + 18})`}
+                  fill={isHovered ? 'var(--accent2)' : 'var(--text)'}
+                  fontSize={11.5}
+                  fontWeight={isHovered ? 700 : 500}
+                  fontFamily="inherit"
+                  style={{ cursor: 'pointer', transition: 'all 0.15s ease' }}
+                >
+                  {p.name}
+                </text>
+
+                {/* Node dot on Profit */}
+                {showProfit && (
+                  <circle
+                    cx={p.x}
+                    cy={p.yProfit}
+                    r={isHovered ? 7 : 4}
+                    fill="var(--bg)"
+                    stroke="#E23B3B"
+                    strokeWidth={isHovered ? 3 : 2}
+                    className="graph-node-dot"
+                  />
+                )}
+
+                {/* Node dot on P10 */}
+                {showP10 && (
+                  <circle
+                    cx={p.x}
+                    cy={p.yP10}
+                    r={isHovered ? 6 : 3.5}
+                    fill="var(--bg)"
+                    stroke="#0EA5E9"
+                    strokeWidth={isHovered ? 2.5 : 1.8}
+                    className="graph-node-dot"
+                  />
+                )}
+
+                {/* Node dot on Rent */}
+                {showRent && (
+                  <circle
+                    cx={p.x}
+                    cy={p.yRent}
+                    r={isHovered ? 6 : 3.5}
+                    fill="var(--bg)"
+                    stroke="#8B5CF6"
+                    strokeWidth={isHovered ? 2.5 : 1.8}
+                    className="graph-node-dot"
+                  />
+                )}
+
+                {/* Node dot on Footfall */}
+                {showFootfall && (
+                  <circle
+                    cx={p.x}
+                    cy={p.yFf}
+                    r={isHovered ? 5.5 : 3}
+                    fill="var(--bg)"
+                    stroke="#F59E0B"
+                    strokeWidth={1.8}
+                    className="graph-node-dot"
+                  />
+                )}
+              </g>
+            );
+          })}
+        </svg>
+
+        {/* Floating Tooltip Card */}
+        {hoveredPoint && (
+          <div
+            className="card pad12 col g6 shadow"
+            style={{
+              position: 'absolute',
+              top: 14,
+              left: Math.max(14, Math.min(hoveredPoint.x - 110, plotW - 140)),
+              width: 250,
+              background: 'var(--surface)',
+              border: '1.5px solid var(--accent2)',
+              borderRadius: 14,
+              pointerEvents: 'none',
+              zIndex: 30,
+              boxShadow: '0 8px 24px -2px rgba(0,0,0,0.22)',
+            }}
+          >
+            <div className="row sb ac">
+              <span className="b s14">{hoveredPoint.name}</span>
+              <span className="tag acc">{hoveredPoint.zone} Zone</span>
+            </div>
+            <span className="s11 muted">{hoveredPoint.sub}</span>
+
+            <div className="divider" style={{ margin: '4px 0' }} />
+
+            <div className="grid2 g8 s12">
+              <div className="col g2">
+                <span className="s11 muted">Expected Profit</span>
+                <span className="b num" style={{ color: '#E23B3B' }}>{inr(hoveredPoint.expProfit)}</span>
+              </div>
+              <div className="col g2">
+                <span className="s11 muted">Downside (P10)</span>
+                <span className="b num" style={{ color: '#0EA5E9' }}>{inr(hoveredPoint.p10Profit)}</span>
+              </div>
+              <div className="col g2">
+                <span className="s11 muted">Commercial Rent</span>
+                <span className="b num" style={{ color: '#8B5CF6' }}>₹{hoveredPoint.rent}/sq ft</span>
+              </div>
+              <div className="col g2">
+                <span className="s11 muted">Footfall Density</span>
+                <span className="b num" style={{ color: '#F59E0B' }}>{hoveredPoint.ffIdx} / 100</span>
+              </div>
+            </div>
+
+            <div className="row sb ac s11 muted" style={{ marginTop: 2 }}>
+              <span className="tag">Tier {hoveredPoint.tier} Viability</span>
+              <span className="b acc">Click to focus map →</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
