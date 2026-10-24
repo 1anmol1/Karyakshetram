@@ -15,8 +15,22 @@ import Profile from './pages/Profile.jsx';
 import Saved from './pages/Saved.jsx';
 import Guide from './pages/Guide.jsx';
 import NotFound from './pages/NotFound.jsx';
+import { AbstractArtBackground } from './components/ui.jsx';
 
-function Splash() { return <div className="col ac jc" style={{ minHeight: '100vh' }}><div className="logo">Karyakshetram<i>.</i></div><div className="s13 muted" style={{ marginTop: 8 }}>Loading…</div></div>; }
+function Splash() {
+  return (
+    <div className="col ac jc" style={{ minHeight: '100vh', position: 'relative', overflow: 'hidden' }}>
+      <AbstractArtBackground />
+      <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+        <div className="logo" style={{ fontSize: 28 }}>Karyakshetram<i>.</i></div>
+        <div className="row g8 ac s13 muted">
+          <span className="dot" style={{ background: 'var(--accent)', animation: 'pulse 1.4s ease-in-out infinite' }} />
+          <span>Initializing workspace…</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function RequireAuth({ children, onboarded = true }) {
   const { user, ready } = useAuth();

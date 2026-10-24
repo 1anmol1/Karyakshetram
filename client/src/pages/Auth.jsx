@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth, useToast } from '../lib/state.jsx';
 import { fieldErrors } from '../lib/api.js';
-import { Icon, ThemeToggle, Field, Banner, Check } from '../components/ui.jsx';
+import { Icon, ThemeToggle, Field, Banner, Check, AbstractArtBackground } from '../components/ui.jsx';
 
 function strength(p) {
   let s = 0;
@@ -91,8 +91,9 @@ export default function Auth({ mode }) {
   const s = strength(f.password);
 
   return (
-    <div className="page auth-page">
-      <header className="hdr">
+    <div className="page auth-page" style={{ position: 'relative', overflowX: 'hidden' }}>
+      <AbstractArtBackground />
+      <header className="hdr" style={{ position: 'relative', zIndex: 10 }}>
         <div className="hleft">
           <Link to="/" className="iconbtn auth-back-btn" aria-label="Back">
             <Icon n="arrow-left-line" />

@@ -1,8 +1,25 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth, useApp, useToast } from '../lib/state.jsx';
-import { Icon, ThemeToggle } from '../components/ui.jsx';
+import { Icon, ThemeToggle, AbstractArtBackground } from '../components/ui.jsx';
 
+// Page 2: Business Formats & Operational Types
+const BUSINESS_FORMATS = [
+  { id: 'flagship', name: 'Flagship Retail Outlet', icon: 'store-3-line', desc: 'Prominent standalone showcase in high-traffic shopping districts' },
+  { id: 'boutique', name: 'High-Street Boutique', icon: 't-shirt-2-line', desc: 'Curated lifestyle collections in pedestrian shopping hubs' },
+  { id: 'qsr', name: 'QSR & Fast-Casual', icon: 'fire-line', desc: 'High-turnover dining with compact seating & rapid fulfillment' },
+  { id: 'cloud-kitchen', name: 'Cloud Kitchen & Delivery', icon: 'restaurant-line', desc: 'Delivery-first kitchen hub with low frontage capex' },
+  { id: 'franchise', name: 'Franchise Chain Outlet', icon: 'git-merge-line', desc: 'Scalable multi-unit concept with defined territory exclusivity' },
+  { id: 'neighborhood', name: 'Neighborhood Mart', icon: 'shopping-basket-2-line', desc: 'Dense residential daily convenience & walking catchment' },
+  { id: 'experience', name: 'D2C Experience Studio', icon: 'magic-line', desc: 'Interactive physical showroom driving omnichannel conversion' },
+  { id: 'mall-anchor', name: 'Mall Atrium Anchor', icon: 'building-line', desc: 'High-visibility anchor destination capturing mall footfall' },
+  { id: 'kiosk', name: 'Kiosk & Pop-Up Format', icon: 'apps-2-line', desc: 'Agile low-capex modular presence in prime transit corridors' },
+  { id: 'transit', name: 'Commuter & Transit Hub', icon: 'train-line', desc: 'Metro station concourses & high-speed commuter junctions' },
+  { id: 'wellness', name: 'Specialty Studio & Clinic', icon: 'heart-pulse-line', desc: 'Appointment-based personal care, diagnostics, or wellness' },
+  { id: 'cafe-roastery', name: 'Artisanal Cafe & Bakery', icon: 'cup-line', desc: 'Specialty coffee lounge, pastry counter & community space' },
+];
+
+// Page 3: Retail Categories
 const CATEGORY_ITEMS = [
   { key: 'restaurant', name: 'Restaurant & Dining', icon: 'restaurant-2-line', desc: 'Fine dining, casual dining, family bistros' },
   { key: 'cafe', name: 'Cafe & Beverage', icon: 'cup-line', desc: 'Specialty coffee, beverage bars, patisserie' },
@@ -18,24 +35,25 @@ const CATEGORY_ITEMS = [
   { key: 'diagnostics', name: 'Diagnostics & Clinic', icon: 'microscope-line', desc: 'Pathology labs, dental clinics, scan centers' },
 ];
 
+// Page 4: Common Retail Hurdles
 const CHALLENGE_ITEMS = [
-  { id: 'rent', label: 'High commercial rent & aggressive lease lock-ins', icon: 'money-dollar-circle-line' },
-  { id: 'footfall', label: 'Unpredictable footfall & misleading pedestrian counts', icon: 'walk-line' },
-  { id: 'cannibalisation', label: 'Risk of cannibalising our own existing stores', icon: 'git-merge-line' },
-  { id: 'competition', label: 'Heavy competitor saturation in commercial hubs', icon: 'store-3-line' },
-  { id: 'demographics', label: 'Understanding true neighborhood affluence & spending power', icon: 'user-search-line' },
-  { id: 'visibility', label: 'Finding prime street frontage & accessible parking', icon: 'eye-line' },
-  { id: 'breakeven', label: 'Long capex payback periods & uncertain break-even', icon: 'scales-3-line' },
-  { id: 'permits', label: 'Navigating local municipal zoning & trade regulations', icon: 'shield-keyhole-line' },
+  { id: 'rent', label: 'High commercial rent & aggressive lock-ins', icon: 'money-dollar-circle-line', desc: 'Lease inflexibility and excessive security deposits' },
+  { id: 'footfall', label: 'Unpredictable footfall & misleading counts', icon: 'walk-line', desc: 'Inflated weekend metrics masking weekday lulls' },
+  { id: 'cannibalisation', label: 'Cannibalising our existing network stores', icon: 'git-merge-line', desc: 'Overlapping catchments eroding same-store sales' },
+  { id: 'competition', label: 'Heavy competitor saturation in commercial hubs', icon: 'store-3-line', desc: 'Price wars and margin compression in hot corridors' },
+  { id: 'demographics', label: 'Understanding true neighborhood affluence', icon: 'user-search-line', desc: 'Misjudging local disposable income and basket sizes' },
+  { id: 'visibility', label: 'Securing prime frontage & vehicle parking', icon: 'eye-line', desc: 'Obstructed street facades and acute parking deficits' },
+  { id: 'breakeven', label: 'Long capex payback & uncertain break-even', icon: 'scales-3-line', desc: 'Delayed unit-economics profitability past target dates' },
+  { id: 'permits', label: 'Navigating municipal zoning & trade clearances', icon: 'shield-keyhole-line', desc: 'Regulatory delays and municipal signage constraints' },
 ];
 
 const PRELOADER_MESSAGES = [
-  'Saving your business identity & venture profile…',
-  'Calibrating 949 H3 hexagonal spatial cells for Pune & PCMC…',
-  'Analyzing catchment demographics and household affluence…',
-  'Mapping competitor density and anchor footfall…',
-  'Configuring baseline revenue models for your category…',
-  'Your retail intelligence dashboard is ready!',
+  'Calibrating 949 H3 spatial hexagonal cells across Pune & PCMC…',
+  'Synthesizing neighborhood demographic indices & spending power…',
+  'Constructing competitor density vectors & pedestrian catchment friction…',
+  'Formulating calibrated P10–P90 revenue distribution curves…',
+  'Verifying cross-store cannibalisation and break-even rent thresholds…',
+  'Your retail intelligence cockpit is ready.',
 ];
 
 export default function Onboarding() {
@@ -58,14 +76,14 @@ export default function Onboarding() {
       : [user?.profile?.category || 'grocery'],
     challengesNote: user?.profile?.challengesNote || '',
     challenges: user?.profile?.challenges || [
-      'High commercial rent & aggressive lease lock-ins',
-      'Unpredictable footfall & misleading pedestrian counts',
+      'High commercial rent & aggressive lock-ins',
+      'Unpredictable footfall & misleading counts',
     ],
   });
 
   const [err, setErr] = useState('');
   const [preloaderIdx, setPreloaderIdx] = useState(0);
-  const [progress, setProgress] = useState(15);
+  const [progress, setProgress] = useState(18);
 
   const toggleCategory = (key) => {
     setForm((f) => {
@@ -73,6 +91,14 @@ export default function Onboarding() {
       const updated = exists ? f.categories.filter((c) => c !== key) : [...f.categories, key];
       return { ...f, categories: updated.length ? updated : [key] };
     });
+  };
+
+  const selectFormat = (fmt) => {
+    setForm((f) => ({
+      ...f,
+      businessType: fmt.name,
+      businessActivity: f.businessActivity.trim() ? f.businessActivity : fmt.desc,
+    }));
   };
 
   const toggleChallenge = (label) => {
@@ -102,20 +128,19 @@ export default function Onboarding() {
         return;
       }
       if (!form.businessType.trim()) {
-        setErr('Please specify the type / format of your business');
+        setErr('Please select or specify the type / format of your business');
         return;
       }
       setDirection('forward');
       setStep(3);
     } else if (step === 3) {
       if (!form.categories.length) {
-        setErr('Please select at least one business category');
+        setErr('Please select at least one retail category');
         return;
       }
       setDirection('forward');
       setStep(4);
     } else if (step === 4) {
-      // Transition to creative preloader!
       startPreloaderAndFinish();
     }
   };
@@ -132,7 +157,6 @@ export default function Onboarding() {
     setDirection('forward');
     setStep('preloader');
 
-    // Trigger saveProfile in background
     const primaryCategory = form.categories[0] || 'grocery';
     setCategory(primaryCategory);
 
@@ -150,7 +174,7 @@ export default function Onboarding() {
         onboardingStep: 5,
       },
     }).catch((e) => {
-      console.warn('Profile save warning:', e);
+      console.warn('Profile save note:', e);
     });
   };
 
@@ -160,13 +184,13 @@ export default function Onboarding() {
 
     const interval = setInterval(() => {
       setPreloaderIdx((i) => (i + 1) % PRELOADER_MESSAGES.length);
-      setProgress((p) => Math.min(100, p + 18));
+      setProgress((p) => Math.min(100, p + 16));
     }, 450);
 
     const redirectTimer = setTimeout(() => {
       toast('Welcome to Karyakshetram!', { tone: 'ok', icon: 'checkbox-circle-fill' });
       nav('/app', { replace: true });
-    }, 2500);
+    }, 2800);
 
     return () => {
       clearInterval(interval);
@@ -174,14 +198,23 @@ export default function Onboarding() {
     };
   }, [step, nav, toast]);
 
+  // Row Major Split:
+  // Given array [0, 1, 2, 3, 4, 5, ...]
+  // Row 1 gets even indices [0, 2, 4, 6, 8, 10]
+  // Row 2 gets odd indices  [1, 3, 5, 7, 9, 11]
+  const formatRow1 = BUSINESS_FORMATS.filter((_, i) => i % 2 === 0);
+  const formatRow2 = BUSINESS_FORMATS.filter((_, i) => i % 2 !== 0);
+
+  const catRow1 = CATEGORY_ITEMS.filter((_, i) => i % 2 === 0);
+  const catRow2 = CATEGORY_ITEMS.filter((_, i) => i % 2 !== 0);
+
+  const chalRow1 = CHALLENGE_ITEMS.filter((_, i) => i % 2 === 0);
+  const chalRow2 = CHALLENGE_ITEMS.filter((_, i) => i % 2 !== 0);
+
   return (
     <div className="ob-page">
-      {/* Abstract Background Design */}
-      <div className="ob-bg-decor" aria-hidden="true">
-        <div className="ob-mesh" />
-        <div className="ob-orb ob-orb-1" />
-        <div className="ob-orb ob-orb-2" />
-      </div>
+      {/* Abstract Background Design in Light and Dark Mode */}
+      <AbstractArtBackground />
 
       {/* Top Header */}
       <header className="ob-hdr">
@@ -228,23 +261,32 @@ export default function Onboarding() {
         {step === 'preloader' ? (
           <div className="ob-preloader-stage ob-anim-forward">
             <div className="ob-preloader-visual">
-              <div className="ob-orbit ob-orbit-1" />
-              <div className="ob-orbit ob-orbit-2" />
+              <div className="ob-orbit-outer" />
+              <div className="ob-orbit-middle" />
               <div className="ob-orbit-core">
-                <Icon n="sparkling-2-line" />
+                <div className="ob-orbit-radar-sweep" />
+                <Icon n="radar-line" />
               </div>
             </div>
 
-            <div className="col g10">
-              <h1 className="ob-preloader-title">Setting you up…</h1>
+            <div className="col g8 ac">
+              <div className="ob-telemetry-badge">
+                <span className="ob-pulse-dot" /> SPATIAL ENGINE ACTIVE
+              </div>
+              <h1 className="ob-preloader-title">Calibrating Workspace</h1>
               <p className="ob-preloader-status">{PRELOADER_MESSAGES[preloaderIdx]}</p>
             </div>
 
-            <div className="ob-progress-bar-wrap">
-              <div className="ob-progress-bar-fill" style={{ width: `${progress}%` }} />
+            <div className="ob-progress-track">
+              <div className="ob-progress-bar" style={{ width: `${progress}%` }}>
+                <div className="ob-progress-shimmer" />
+              </div>
             </div>
 
-            <span className="s12 muted">Configuring your personal spatial analytics engine</span>
+            <div className="row sb w100 s12 muted" style={{ maxWidth: '100%', padding: '0 4px' }}>
+              <span>Synthesizing catchment models</span>
+              <span className="mono b" style={{ color: 'var(--text)' }}>{progress}%</span>
+            </div>
           </div>
         ) : (
           <div className={`ob-center-box ${direction === 'forward' ? 'ob-anim-forward' : 'ob-anim-backward'}`}>
@@ -262,7 +304,7 @@ export default function Onboarding() {
                 </div>
 
                 {err && (
-                  <div className="panel pad12 row g8 s13" style={{ background: 'var(--badSoft)', color: 'var(--bad)', borderRadius: 12 }}>
+                  <div className="panel pad12 row g8 s13" style={{ background: 'var(--badSoft)', color: 'var(--bad)', borderRadius: 14 }}>
                     <Icon n="error-warning-line" s={18} />
                     <span>{err}</span>
                   </div>
@@ -306,7 +348,7 @@ export default function Onboarding() {
               </>
             )}
 
-            {/* Step 2: What you do and Type of business */}
+            {/* Step 2: What you do & Type of business + 2 Zig-Zag Auto-Scrolling Rows */}
             {step === 2 && (
               <>
                 <div className="ob-hero">
@@ -315,17 +357,18 @@ export default function Onboarding() {
                   </span>
                   <h1 className="ob-title">Tell us about your business</h1>
                   <p className="ob-sub">
-                    Describe your primary offering and operational type so our algorithms match relevant footfall and density curves.
+                    Describe your business offering and choose your operational format to calibrate catchment footfall.
                   </p>
                 </div>
 
                 {err && (
-                  <div className="panel pad12 row g8 s13" style={{ background: 'var(--badSoft)', color: 'var(--bad)', borderRadius: 12 }}>
+                  <div className="panel pad12 row g8 s13" style={{ background: 'var(--badSoft)', color: 'var(--bad)', borderRadius: 14 }}>
                     <Icon n="error-warning-line" s={18} />
                     <span>{err}</span>
                   </div>
                 )}
 
+                {/* Two Fillups Card */}
                 <div className="ob-inputs-card">
                   <div className="ob-field">
                     <label className="ob-label">What does your business do?</label>
@@ -342,7 +385,7 @@ export default function Onboarding() {
                   </div>
 
                   <div className="ob-field">
-                    <label className="ob-label">Type of your business / Format</label>
+                    <label className="ob-label">Type / Format of your business</label>
                     <div className="ob-input-wrap">
                       <Icon n="git-branch-line" s={18} c="var(--muted)" />
                       <input
@@ -353,20 +396,84 @@ export default function Onboarding() {
                       />
                     </div>
                   </div>
+                </div>
 
-                  <div className="ob-actions">
-                    <button type="button" className="ob-btn out" onClick={goBack}>
-                      <Icon n="arrow-left-line" s={16} /> Back
-                    </button>
-                    <button type="button" className="ob-btn ink" onClick={goNext}>
-                      Continue <Icon n="arrow-right-line" s={16} />
-                    </button>
+                {/* 2 Rows one below other in Zig-Zag in Auto Horizontal Scroll (Row Major Order) */}
+                <div className="col g10 ac" style={{ marginTop: 6 }}>
+                  <div className="ob-ticker-hint">
+                    <Icon n="drag-move-2-line" s={14} />
+                    <span>Popular formats in Row-Major order • Hover to pause • Click to select</span>
                   </div>
+
+                  <div className="ob-zigzag-carousel-stage">
+                    {/* Row 1: Even indices in Row-Major order */}
+                    <div className="ob-marquee-track row-1">
+                      {[...formatRow1, ...formatRow1, ...formatRow1].map((fmt, idx) => {
+                        const active = form.businessType.toLowerCase() === fmt.name.toLowerCase();
+                        return (
+                          <div
+                            key={`r1-${fmt.id}-${idx}`}
+                            className={`ob-card ${active ? 'on' : ''}`}
+                            onClick={() => selectFormat(fmt)}
+                            role="button"
+                            tabIndex={0}
+                          >
+                            <div className="ob-card-icon">
+                              <Icon n={fmt.icon} />
+                            </div>
+                            <div className="ob-card-body">
+                              <span className="ob-card-title">{fmt.name}</span>
+                              <span className="ob-card-sub">{fmt.desc}</span>
+                            </div>
+                            <div className="ob-card-check">
+                              {active && <Icon n="check-line" s={14} />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Row 2: Odd indices placed below in Zig-Zag offset */}
+                    <div className="ob-marquee-track row-2">
+                      {[...formatRow2, ...formatRow2, ...formatRow2].map((fmt, idx) => {
+                        const active = form.businessType.toLowerCase() === fmt.name.toLowerCase();
+                        return (
+                          <div
+                            key={`r2-${fmt.id}-${idx}`}
+                            className={`ob-card ${active ? 'on' : ''}`}
+                            onClick={() => selectFormat(fmt)}
+                            role="button"
+                            tabIndex={0}
+                          >
+                            <div className="ob-card-icon">
+                              <Icon n={fmt.icon} />
+                            </div>
+                            <div className="ob-card-body">
+                              <span className="ob-card-title">{fmt.name}</span>
+                              <span className="ob-card-sub">{fmt.desc}</span>
+                            </div>
+                            <div className="ob-card-check">
+                              {active && <Icon n="check-line" s={14} />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="ob-actions">
+                  <button type="button" className="ob-btn out" onClick={goBack}>
+                    <Icon n="arrow-left-line" s={16} /> Back
+                  </button>
+                  <button type="button" className="ob-btn ink" onClick={goNext}>
+                    Continue <Icon n="arrow-right-line" s={16} />
+                  </button>
                 </div>
               </>
             )}
 
-            {/* Step 3: Checkboxes in zig-zag rows */}
+            {/* Step 3: Checkboxes in 2 Zig-Zag Auto-Scrolling Rows (Row Major Order) */}
             {step === 3 && (
               <>
                 <div className="ob-hero">
@@ -380,46 +487,76 @@ export default function Onboarding() {
                 </div>
 
                 {err && (
-                  <div className="panel pad12 row g8 s13" style={{ background: 'var(--badSoft)', color: 'var(--bad)', borderRadius: 12 }}>
+                  <div className="panel pad12 row g8 s13" style={{ background: 'var(--badSoft)', color: 'var(--bad)', borderRadius: 14 }}>
                     <Icon n="error-warning-line" s={18} />
                     <span>{err}</span>
                   </div>
                 )}
 
-                {/* Staggered Zig-Zag Rows of Rectangle Cards */}
-                <div className="ob-zigzag-container">
-                  {Array.from({ length: Math.ceil(CATEGORY_ITEMS.length / 2) }).map((_, rIdx) => {
-                    const rowItems = CATEGORY_ITEMS.slice(rIdx * 2, rIdx * 2 + 2);
-                    return (
-                      <div key={rIdx} className="ob-zigzag-row">
-                        {rowItems.map((cat) => {
-                          const active = form.categories.includes(cat.key);
-                          return (
-                            <div
-                              key={cat.key}
-                              className={`ob-card ${active ? 'on' : ''}`}
-                              onClick={() => toggleCategory(cat.key)}
-                              role="checkbox"
-                              aria-checked={active}
-                              tabIndex={0}
-                              onKeyDown={(e) => e.key === 'Enter' && toggleCategory(cat.key)}
-                            >
-                              <div className="ob-card-icon">
-                                <Icon n={cat.icon} />
-                              </div>
-                              <div className="ob-card-body">
-                                <span className="ob-card-title">{cat.name}</span>
-                                <span className="ob-card-sub">{cat.desc}</span>
-                              </div>
-                              <div className="ob-card-check">
-                                {active && <Icon n="check-line" s={14} />}
-                              </div>
+                <div className="col g10 ac">
+                  <div className="ob-ticker-hint">
+                    <Icon n="checkbox-multiple-line" s={14} />
+                    <span>Categories in Row-Major order • Hover to pause • Click cards to toggle</span>
+                  </div>
+
+                  {/* 2 Rows one below other in Zig-Zag in Auto Horizontal Scroll (Row Major Order) */}
+                  <div className="ob-zigzag-carousel-stage">
+                    {/* Row 1: Even indices in Row-Major order */}
+                    <div className="ob-marquee-track row-1">
+                      {[...catRow1, ...catRow1, ...catRow1].map((cat, idx) => {
+                        const active = form.categories.includes(cat.key);
+                        return (
+                          <div
+                            key={`c1-${cat.key}-${idx}`}
+                            className={`ob-card ${active ? 'on' : ''}`}
+                            onClick={() => toggleCategory(cat.key)}
+                            role="checkbox"
+                            aria-checked={active}
+                            tabIndex={0}
+                          >
+                            <div className="ob-card-icon">
+                              <Icon n={cat.icon} />
                             </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
+                            <div className="ob-card-body">
+                              <span className="ob-card-title">{cat.name}</span>
+                              <span className="ob-card-sub">{cat.desc}</span>
+                            </div>
+                            <div className="ob-card-check">
+                              {active && <Icon n="check-line" s={14} />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Row 2: Odd indices placed below in Zig-Zag offset */}
+                    <div className="ob-marquee-track row-2">
+                      {[...catRow2, ...catRow2, ...catRow2].map((cat, idx) => {
+                        const active = form.categories.includes(cat.key);
+                        return (
+                          <div
+                            key={`c2-${cat.key}-${idx}`}
+                            className={`ob-card ${active ? 'on' : ''}`}
+                            onClick={() => toggleCategory(cat.key)}
+                            role="checkbox"
+                            aria-checked={active}
+                            tabIndex={0}
+                          >
+                            <div className="ob-card-icon">
+                              <Icon n={cat.icon} />
+                            </div>
+                            <div className="ob-card-body">
+                              <span className="ob-card-title">{cat.name}</span>
+                              <span className="ob-card-sub">{cat.desc}</span>
+                            </div>
+                            <div className="ob-card-check">
+                              {active && <Icon n="check-line" s={14} />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="ob-actions">
@@ -433,7 +570,7 @@ export default function Onboarding() {
               </>
             )}
 
-            {/* Step 4: Challenges checkboxes in small rectangle cards + top fillup */}
+            {/* Step 4: Challenges with top fillup + aesthetic cards */}
             {step === 4 && (
               <>
                 <div className="ob-hero">
@@ -442,19 +579,19 @@ export default function Onboarding() {
                   </span>
                   <h1 className="ob-title">What challenges do you face?</h1>
                   <p className="ob-sub">
-                    Highlight the friction points you deal with so Karyakshetram surfaces the right sensitivity and risk analyses.
+                    Highlight friction points you deal with so Karyakshetram surfaces the right sensitivity and risk analyses.
                   </p>
                 </div>
 
                 {err && (
-                  <div className="panel pad12 row g8 s13" style={{ background: 'var(--badSoft)', color: 'var(--bad)', borderRadius: 12 }}>
+                  <div className="panel pad12 row g8 s13" style={{ background: 'var(--badSoft)', color: 'var(--bad)', borderRadius: 14 }}>
                     <Icon n="error-warning-line" s={18} />
                     <span>{err}</span>
                   </div>
                 )}
 
                 {/* Top Fillup for custom challenges */}
-                <div className="ob-inputs-card" style={{ padding: '24px 24px 20px', gap: 12 }}>
+                <div className="ob-inputs-card" style={{ padding: '26px 28px', gap: 12 }}>
                   <div className="ob-field">
                     <label className="ob-label">Your biggest retail challenge right now</label>
                     <div className="ob-input-wrap">
@@ -463,46 +600,72 @@ export default function Onboarding() {
                         autoFocus
                         value={form.challengesNote}
                         onChange={(e) => setForm({ ...form, challengesNote: e.target.value })}
-                        placeholder="e.g. Finding high footfall locations with reasonable rent, avoiding cannibalising our stores..."
+                        placeholder="e.g. High commercial rent, cannibalising our stores, unpredictable footfall..."
                       />
                     </div>
                   </div>
-                  <span className="s12 muted">You can also select from the common industry challenges below:</span>
+                  <span className="s12 muted">Select common industry challenges below:</span>
                 </div>
 
-                {/* Smaller size rectangle checkbox cards arranged in zig-zag rows */}
-                <div className="ob-zigzag-container">
-                  {Array.from({ length: Math.ceil(CHALLENGE_ITEMS.length / 2) }).map((_, rIdx) => {
-                    const rowItems = CHALLENGE_ITEMS.slice(rIdx * 2, rIdx * 2 + 2);
-                    return (
-                      <div key={rIdx} className="ob-zigzag-row">
-                        {rowItems.map((ch) => {
-                          const active = form.challenges.includes(ch.label);
-                          return (
-                            <div
-                              key={ch.id}
-                              className={`ob-card sm ${active ? 'on' : ''}`}
-                              onClick={() => toggleChallenge(ch.label)}
-                              role="checkbox"
-                              aria-checked={active}
-                              tabIndex={0}
-                              onKeyDown={(e) => e.key === 'Enter' && toggleChallenge(ch.label)}
-                            >
-                              <div className="ob-card-icon">
-                                <Icon n={ch.icon} />
-                              </div>
-                              <div className="ob-card-body">
-                                <span className="ob-card-title">{ch.label}</span>
-                              </div>
-                              <div className="ob-card-check">
-                                {active && <Icon n="check-line" s={12} />}
-                              </div>
+                {/* 2 Rows one below other in Zig-Zag in Auto Horizontal Scroll (Row Major Order) */}
+                <div className="col g10 ac">
+                  <div className="ob-zigzag-carousel-stage">
+                    {/* Row 1 */}
+                    <div className="ob-marquee-track row-1">
+                      {[...chalRow1, ...chalRow1, ...chalRow1].map((ch, idx) => {
+                        const active = form.challenges.includes(ch.label);
+                        return (
+                          <div
+                            key={`ch1-${ch.id}-${idx}`}
+                            className={`ob-card sm ${active ? 'on' : ''}`}
+                            onClick={() => toggleChallenge(ch.label)}
+                            role="checkbox"
+                            aria-checked={active}
+                            tabIndex={0}
+                          >
+                            <div className="ob-card-icon">
+                              <Icon n={ch.icon} />
                             </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
+                            <div className="ob-card-body">
+                              <span className="ob-card-title">{ch.label}</span>
+                              <span className="ob-card-sub">{ch.desc}</span>
+                            </div>
+                            <div className="ob-card-check">
+                              {active && <Icon n="check-line" s={13} />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Row 2 in Zig-Zag offset */}
+                    <div className="ob-marquee-track row-2">
+                      {[...chalRow2, ...chalRow2, ...chalRow2].map((ch, idx) => {
+                        const active = form.challenges.includes(ch.label);
+                        return (
+                          <div
+                            key={`ch2-${ch.id}-${idx}`}
+                            className={`ob-card sm ${active ? 'on' : ''}`}
+                            onClick={() => toggleChallenge(ch.label)}
+                            role="checkbox"
+                            aria-checked={active}
+                            tabIndex={0}
+                          >
+                            <div className="ob-card-icon">
+                              <Icon n={ch.icon} />
+                            </div>
+                            <div className="ob-card-body">
+                              <span className="ob-card-title">{ch.label}</span>
+                              <span className="ob-card-sub">{ch.desc}</span>
+                            </div>
+                            <div className="ob-card-check">
+                              {active && <Icon n="check-line" s={13} />}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="ob-actions">

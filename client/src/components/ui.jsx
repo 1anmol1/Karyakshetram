@@ -198,3 +198,57 @@ export function Photo({ category, seed = 1, h = 120, caption }) {
     </svg>
   );
 }
+
+export function AbstractArtBackground({ variant = 'default', showHex = true }) {
+  return (
+    <div className={`abstract-art-bg variant-${variant}`} aria-hidden="true">
+      <div className="art-gradient-orb orb-1" />
+      <div className="art-gradient-orb orb-2" />
+      <div className="art-gradient-orb orb-3" />
+      <div className="art-dot-grid" />
+      <svg className="art-svg-layer" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="artGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.45" />
+            <stop offset="50%" stopColor="var(--accent2)" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="var(--line)" stopOpacity="0.08" />
+          </linearGradient>
+          <linearGradient id="artGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="var(--accent2)" stopOpacity="0.3" />
+            <stop offset="100%" stopColor="var(--line)" stopOpacity="0.05" />
+          </linearGradient>
+        </defs>
+
+        {showHex && (
+          <g className="art-hex-cluster" stroke="url(#artGrad1)" strokeWidth="1.2">
+            {/* Primary H3 Hexagon Motif */}
+            <path d="M720 180 L790 220 L790 300 L720 340 L650 300 L650 220 Z" strokeDasharray="4 4" fill="var(--accentSoft)" fillOpacity="0.15" />
+            <path d="M720 100 L860 180 L860 340 L720 420 L580 340 L580 180 Z" strokeWidth="0.8" strokeDasharray="8 6" opacity="0.4" />
+            
+            {/* Secondary Ambient Hexagons */}
+            <path d="M1180 380 L1240 415 L1240 485 L1180 520 L1120 485 L1120 415 Z" stroke="url(#artGrad2)" strokeWidth="1" strokeDasharray="5 4" opacity="0.6" />
+            <path d="M260 520 L320 555 L320 625 L260 660 L200 625 L200 555 Z" stroke="url(#artGrad2)" strokeWidth="1" strokeDasharray="6 4" opacity="0.6" />
+          </g>
+        )}
+
+        {/* Concentric Geometric Orbitals */}
+        <circle cx="720" cy="260" r="180" stroke="url(#artGrad1)" strokeWidth="0.75" strokeDasharray="3 7" opacity="0.45" />
+        <circle cx="720" cy="260" r="320" stroke="url(#artGrad1)" strokeWidth="0.6" opacity="0.3" />
+        <circle cx="720" cy="260" r="480" stroke="url(#artGrad2)" strokeWidth="0.5" strokeDasharray="10 10" opacity="0.2" />
+
+        {/* Dynamic Curvilinear Topographic Waves */}
+        <path d="M-80 320 C280 160, 560 480, 980 290 C1220 180, 1420 360, 1560 410" stroke="url(#artGrad1)" strokeWidth="1" opacity="0.35" />
+        <path d="M-80 370 C300 210, 580 530, 1000 340 C1240 230, 1440 410, 1560 460" stroke="url(#artGrad2)" strokeWidth="0.8" opacity="0.25" />
+
+        {/* Architectural Crosshair Grid Markers */}
+        <g stroke="var(--line)" strokeWidth="1.2" opacity="0.7">
+          <path d="M160 120 v14 M153 127 h14" />
+          <path d="M1280 140 v14 M1273 147 h14" />
+          <path d="M180 740 v14 M173 747 h14" />
+          <path d="M1300 720 v14 M1293 727 h14" />
+          <path d="M720 50 v14 M713 57 h14" />
+        </g>
+      </svg>
+    </div>
+  );
+}
