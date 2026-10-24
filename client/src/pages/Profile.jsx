@@ -1,259 +1,545 @@
-import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, fieldErrors } from '../lib/api.js';
 import { useApp, useAuth, useToast } from '../lib/state.jsx';
-import { inr, inrPlain, parseNum, ROLE_LABEL, initials } from '../lib/format.js';
+import { inr, ROLE_LABEL, initials } from '../lib/format.js';
 import { Header, Footer, SystemBanners } from '../components/Layout.jsx';
-import { Icon, Collapse, Field, Modal, Banner, Check } from '../components/ui.jsx';
-
-const NAV = [['personal', 'user-line', 'Personal'], ['business', 'building-2-line', 'Business'], ['stores', 'store-2-line', 'My stores'], ['format', 'equalizer-line', 'Format & economics'], ['goals', 'focus-3-line', 'Goals & constraints'], ['security', 'lock-line', 'Security']];
-
-const Bar = ({ dirty, onSave, onDiscard, note, disabled }) => dirty && <div className="row sb wrap g8" style={{ marginTop: 16, padding: '12px 16px', borderRadius: 12, background: 'var(--surface)' }}><span className="s13 row g8"><Icon n="error-warning-line" s={16} c="var(--warn)" />{note || 'You have unsaved changes.'}</span><span className="row g8"><button className="btn ghost sm" onClick={onDiscard}>Discard</button><button className="btn ink sm" disabled={disabled} onClick={onSave}>Save changes</button></span></div>;
-const Sec = ({ id, children, refs }) => <div ref={(el) => { refs.current[id] = el; }} style={{ scrollMarginTop: 90 }}>{children}</div>;
+import { Icon, Modal, Banner } from '../components/ui.jsx';
 
 export default function Profile() {
   const { user, saveProfile, logout, setUser } = useAuth();
-  const { categories, setCategory } = useApp();
+  const { categories, saved } = useApp();
   const toast = useToast();
   const nav = useNavigate();
-  const loc = useLocation();
-  const p = user.profile || {};
+  const p = user?.profile || {};
   const cat = categories.find((c) => c.key === p.category);
-  const [section, setSection] = useState(loc.hash.slice(1) || 'business');
-  const [lastSaved, setLastSaved] = useState(null);
-  const refs = useRef({});
-  useEffect(() => { const h = loc.hash.slice(1); if (h) { setSection(h); setTimeout(() => refs.current[h]?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); } }, [loc.hash]);
-  const goto = (k) => { setSection(k); refs.current[k]?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
-  const done = (msg, r) => { setLastSaved(new Date()); toast(r?.rescored ? `${msg} · saved searches will re-score` : msg); };
 
-  // ----- business
-  const [biz, setBiz] = useState({
-    name: user.name,
+  // Stores count
+  const [storesCount, setStoresCount] = useState(0);
+  useEffect(() => {
+    api('/stores')
+      .then((r) => setStoresCount(r.stores?.length || 0))
+      .catch(() => setStoresCount(0));
+  }, []);
+
+  // Saved locations count
+  const savedCount = saved?.size || 0;
+
+  // ---------------- Personal Details State & Edit Mode ----------------
+  const [editPersonal, setEditPersonal] = useState(false);
+  const [personalForm, setPersonalForm] = useState({
+    name: user?.name || '',
+    role: p.role || 'owner',
+  });
+  const [personalBusy, setPersonalBusy] = useState(false);
+
+  const savePersonal = async () => {
+    if (!personalForm.name.trim()) {
+      toast('Name cannot be empty', { tone: 'bad' });
+      return;
+    }
+    setPersonalBusy(true);
+    try {
+      await saveProfile({
+        name: personalForm.name.trim(),
+        profile: {
+          role: personalForm.role,
+        },
+      });
+      setEditPersonal(false);
+      toast('Personal details updated successfully', { tone: 'ok', icon: 'checkbox-circle-fill' });
+    } catch (e) {
+      toast(e.message || 'Failed to update personal details', { tone: 'bad' });
+    } finally {
+      setPersonalBusy(false);
+    }
+  };
+
+  const cancelPersonal = () => {
+    setPersonalForm({
+      name: user?.name || '',
+      role: p.role || 'owner',
+    });
+    setEditPersonal(false);
+  };
+
+  // ---------------- Business Details State & Edit Mode ----------------
+  const [editBusiness, setEditBusiness] = useState(false);
+  const [bizForm, setBizForm] = useState({
     businessName: p.businessName || '',
     businessActivity: p.businessActivity || '',
     businessType: p.businessType || '',
-    challengesNote: p.challengesNote || '',
-    role: p.role,
-    focusAreas: (p.focusAreas || []).join(', '),
-    grid: p.grid || 'res8',
+    budget: p.goals?.budget || '',
+    areaSqft: p.format?.areaSqft || '',
   });
-  const [bizErr, setBizErr] = useState({});
-  const bizDirty =
-    biz.name !== user.name ||
-    biz.businessName !== (p.businessName || '') ||
-    biz.businessActivity !== (p.businessActivity || '') ||
-    biz.businessType !== (p.businessType || '') ||
-    biz.challengesNote !== (p.challengesNote || '') ||
-    biz.role !== p.role ||
-    biz.grid !== (p.grid || 'res8') ||
-    biz.focusAreas !== (p.focusAreas || []).join(', ');
+  const [bizBusy, setBizBusy] = useState(false);
 
-  const saveBiz = async () => {
+  // Sync state if profile updates
+  useEffect(() => {
+    setPersonalForm({
+      name: user?.name || '',
+      role: p.role || 'owner',
+    });
+    setBizForm({
+      businessName: p.businessName || '',
+      businessActivity: p.businessActivity || '',
+      businessType: p.businessType || '',
+      budget: p.goals?.budget || '',
+      areaSqft: p.format?.areaSqft || '',
+    });
+  }, [user]);
+
+  const saveBusiness = async () => {
+    if (!bizForm.businessName.trim()) {
+      toast('Business name is required', { tone: 'bad' });
+      return;
+    }
+    setBizBusy(true);
     try {
-      const r = await saveProfile({
-        name: biz.name,
+      const budgetNum = Number(bizForm.budget) || undefined;
+      const areaNum = Number(bizForm.areaSqft) || undefined;
+      await saveProfile({
         profile: {
-          businessName: biz.businessName,
-          businessActivity: biz.businessActivity,
-          businessType: biz.businessType,
-          challengesNote: biz.challengesNote,
-          role: biz.role,
-          grid: biz.grid,
-          focusAreas: biz.focusAreas.split(',').map((s) => s.trim()).filter(Boolean),
+          businessName: bizForm.businessName.trim(),
+          businessActivity: bizForm.businessActivity.trim(),
+          businessType: bizForm.businessType.trim(),
+          goals: {
+            ...p.goals,
+            budget: budgetNum ?? p.goals?.budget,
+          },
+          format: {
+            ...p.format,
+            areaSqft: areaNum ?? p.format?.areaSqft,
+          },
         },
       });
-      setBizErr({});
-      done('Business details saved', r);
+      setEditBusiness(false);
+      toast('Business details updated successfully', { tone: 'ok', icon: 'checkbox-circle-fill' });
     } catch (e) {
-      setBizErr(fieldErrors(e));
-      toast(e.message, { tone: 'bad', icon: 'error-warning-line' });
+      toast(e.message || 'Failed to update business details', { tone: 'bad' });
+    } finally {
+      setBizBusy(false);
     }
   };
-  // ----- category change
-  const [catModal, setCatModal] = useState(false);
-  const [newCat, setNewCat] = useState(p.category);
-  const changeCat = async () => {
-    try { const r = await saveProfile({ profile: { category: newCat }, resetForCategory: true }); setCategory(newCat); setCatModal(false); done(`Category changed to ${categories.find((c) => c.key === newCat)?.name}`, r); }
-    catch (e) { toast(e.message, { tone: 'bad' }); }
+
+  const cancelBusiness = () => {
+    setBizForm({
+      businessName: p.businessName || '',
+      businessActivity: p.businessActivity || '',
+      businessType: p.businessType || '',
+      budget: p.goals?.budget || '',
+      areaSqft: p.format?.areaSqft || '',
+    });
+    setEditBusiness(false);
   };
-  // ----- format
-  const f = p.format || {};
-  const initFmt = () => ({ areaSqft: String(f.areaSqft ?? ''), margin: f.margin != null ? String(+(f.margin * 100).toFixed(1)) : '', opex: String(f.opex ?? ''), capex: String(f.capex ?? ''), staff: String(f.staff ?? '') });
-  const [fmt, setFmt] = useState(initFmt);
-  const [fmtErr, setFmtErr] = useState({});
-  const fmtDirty = JSON.stringify(fmt) !== JSON.stringify(initFmt());
-  const saveFmt = async () => {
-    const e = {}; const a = parseNum(fmt.areaSqft), m = parseNum(fmt.margin), o = parseNum(fmt.opex), c = parseNum(fmt.capex), s = parseNum(fmt.staff);
-    if (!Number.isFinite(a) || a < 200) e.areaSqft = 'At least 200 sq ft'; if (!Number.isFinite(m) || m < 1 || m > 80) e.margin = 'Margin must be between 1% and 80%'; if (!Number.isFinite(o) || o <= 0) e.opex = 'Must be more than 0'; if (!Number.isFinite(c) || c <= 0) e.capex = 'Must be more than 0';
-    setFmtErr(e); if (Object.keys(e).length) return;
-    try { const r = await saveProfile({ profile: { format: { areaSqft: a, margin: m / 100, opex: o, capex: c, staff: Number.isFinite(s) ? Math.round(s) : undefined } } }); done('Format & economics saved', r); }
-    catch (er) { setFmtErr(Object.fromEntries(Object.entries(fieldErrors(er)).map(([k, v]) => [k.split('.').pop(), v]))); }
-  };
-  // ----- goals
-  const g = p.goals || {};
-  const initGoals = () => ({ budget: String(g.budget ?? ''), maxRent: String(g.maxRent ?? ''), minSpacingKm: String(g.minSpacingKm ?? 1.5), minP10Profit: String(g.minP10Profit ?? 0), k: String(g.k ?? 5), risk: g.risk || 'balanced', excludeLowConfidence: g.excludeLowConfidence !== false });
-  const [goals, setGoals] = useState(initGoals);
-  const [goalErr, setGoalErr] = useState({});
-  const goalsDirty = JSON.stringify(goals) !== JSON.stringify(initGoals());
-  const validateGoals = (x) => {
-    const e = {}; const b = parseNum(x.budget), r = parseNum(x.maxRent), s = parseNum(x.minSpacingKm), m = parseNum(x.minP10Profit), k = parseNum(x.k);
-    if (!Number.isFinite(b) || b <= 0) e.budget = 'Budget must be more than 0'; if (!Number.isFinite(r) || r < 10 || r > 1000) e.maxRent = 'Rent must be between ₹10 and ₹1,000 per sq ft per month';
-    if (!Number.isFinite(s) || s < 0.5 || s > 10) e.minSpacingKm = 'Spacing must be 0.5 – 10 km'; if (!Number.isFinite(m) || m < 0) e.minP10Profit = 'Must be 0 or more'; if (!Number.isInteger(k) || k < 1 || k > 20) e.k = '1 – 20';
-    return e;
-  };
-  const liveGoalErr = validateGoals(goals);
-  const saveGoals = async () => {
-    setGoalErr(liveGoalErr); if (Object.keys(liveGoalErr).length) return;
-    try { const r = await saveProfile({ profile: { goals: { budget: parseNum(goals.budget), maxRent: parseNum(goals.maxRent), minSpacingKm: parseNum(goals.minSpacingKm), minP10Profit: parseNum(goals.minP10Profit), k: parseNum(goals.k), risk: goals.risk, excludeLowConfidence: goals.excludeLowConfidence } } }); done('Goals & constraints saved', r); }
-    catch (er) { setGoalErr(Object.fromEntries(Object.entries(fieldErrors(er)).map(([k, v]) => [k.split('.').pop(), v]))); }
-  };
-  // ----- stores
-  const [stores, setStores] = useState(null);
-  const [upRes, setUpRes] = useState(null);
-  const fileRef = useRef(null);
-  const loadStores = () => api('/stores').then((r) => setStores(r.stores)).catch(() => setStores([]));
-  useEffect(() => { loadStores(); }, []);
-  const upload = async (file, mode) => {
-    if (!file) return;
-    const form = new FormData(); form.append('file', file); form.append('category', p.category); form.append('mode', mode);
-    try { const r = await api('/stores/upload', { method: 'POST', form }); setUpRes(r.summary); loadStores(); toast(`${r.summary.valid + r.summary.imputed} stores imported, ${r.summary.excluded} excluded`); }
-    catch (e) { toast(e.message, { tone: 'bad', icon: 'error-warning-line' }); setUpRes(null); }
-    finally { if (fileRef.current) fileRef.current.value = ''; }
-  };
-  const delStore = async (s) => { await api(`/stores/${s._id}`, { method: 'DELETE' }); setStores((x) => x.filter((y) => y._id !== s._id)); toast(`${s.name} removed`, { icon: 'delete-bin-line', tone: 'info' }); };
-  // ----- security
-  const [pw, setPw] = useState({ current: '', next: '' });
-  const [pwErr, setPwErr] = useState({});
-  const changePw = async () => {
-    try { await api('/auth/password', { method: 'PATCH', body: { currentPassword: pw.current, newPassword: pw.next } }); setPw({ current: '', next: '' }); setPwErr({}); toast('Password updated'); }
-    catch (e) { setPwErr(fieldErrors(e)); }
-  };
+
+  // ---------------- Account Actions & Delete ----------------
   const [delModal, setDelModal] = useState(false);
   const [confirmText, setConfirmText] = useState('');
-  const deleteAccount = async () => { try { await api('/profile', { method: 'DELETE' }); logout(); setUser(null); nav('/'); } catch (e) { toast(e.message, { tone: 'bad' }); } };
+  const [delBusy, setDelBusy] = useState(false);
 
-  const anyDirty = bizDirty || fmtDirty || goalsDirty;
-  useEffect(() => { const h = (e) => { if (anyDirty) { e.preventDefault(); e.returnValue = ''; } }; window.addEventListener('beforeunload', h); return () => window.removeEventListener('beforeunload', h); }, [anyDirty]);
+  const deleteAccount = async () => {
+    setDelBusy(true);
+    try {
+      await api('/profile', { method: 'DELETE' });
+      logout();
+      setUser(null);
+      nav('/', { replace: true });
+    } catch (e) {
+      toast(e.message || 'Failed to delete account', { tone: 'bad' });
+    } finally {
+      setDelBusy(false);
+    }
+  };
 
   return (
     <div className="page">
       <Header back />
       <SystemBanners />
-      <div className="row as wrapx stack-md" style={{ padding: '24px 28px', gap: 28 }}>
-        <aside className="col g4" style={{ width: 260, position: 'sticky', top: 90 }}>
-          <div className="card pad20 col ac g8" style={{ marginBottom: 12, textAlign: 'center' }}><div className="avatar" style={{ width: 64, height: 64, fontSize: 20 }}>{initials(user.name)}</div><span className="b s16">{user.name}</span><span className="s12 muted">{p.businessName} · {ROLE_LABEL[p.role]}</span><span className="tag ok">{p.completed ? 'Profile complete' : 'Onboarding incomplete'}</span></div>
-          {NAV.map(([k, ic, t]) => <button key={k} className={`navitem ${section === k ? 'on' : ''}`} onClick={() => goto(k)}><Icon n={ic} s={18} />{t}</button>)}
-          <button className="navitem" onClick={() => nav('/saved')}><Icon n="bookmark-line" s={18} />Saved locations</button>
-        </aside>
-        <div className="col g16 f1" style={{ minWidth: 0 }}>
-          <div className="row sb wrap g8"><div className="col g4"><h1 className="h2">Profile</h1><span className="muted s14">Everything you entered at sign-up. Edits re-score your searches.</span></div>{lastSaved && <span className="toast"><Icon n="checkbox-circle-fill" s={18} c="var(--ok)" />Saved {lastSaved.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>}</div>
-          <Sec refs={refs} id="personal"><Collapse open={section === 'personal'} title={<><Icon n="user-line" s={18} />Personal</>}>
-            <div className="grid2"><Field label="Full name" value={biz.name} onChange={(v) => setBiz({ ...biz, name: v })} error={bizErr.name} /><Field label="Email" value={user.email} disabled help="Contact support to change your email" /></div>
-            <Bar dirty={biz.name !== user.name} onSave={saveBiz} onDiscard={() => setBiz({ ...biz, name: user.name })} /></Collapse></Sec>
-          <Sec refs={refs} id="business">
-            <Collapse open={section === 'business' || section === ''} title={<><Icon n="building-2-line" s={18} />Business &amp; Venture</>} right={!bizDirty && lastSaved ? <span className="tag ok"><Icon n="check-line" s={12} />Saved</span> : null}>
-              <div className="grid3">
-                <Field label="Company name" value={biz.businessName} onChange={(v) => setBiz({ ...biz, businessName: v })} error={bizErr['profile.businessName']} placeholder="Name of your company" />
-                <div className="field"><label>Primary Category</label><button className="input" style={{ justifyContent: 'space-between' }} onClick={() => setCatModal(true)}><span className="row g8"><Icon n={cat?.icon} s={16} c="var(--accent)" />{cat?.name}</span><Icon n="shuffle-line" s={16} c="var(--muted)" /></button></div>
-                <Field label="Role" value={biz.role} onChange={(v) => setBiz({ ...biz, role: v })} options={Object.entries(ROLE_LABEL).map(([value, label]) => ({ value, label }))} />
-                <Field label="City" value="Pune & PCMC" disabled />
-                <Field label="Focus areas" value={biz.focusAreas} onChange={(v) => setBiz({ ...biz, focusAreas: v })} help="Comma-separated localities; empty = whole city" error={bizErr['profile.focusAreas.0'] || bizErr['profile.focusAreas.1']} />
-                <Field label="Grid resolution" value={biz.grid} onChange={(v) => setBiz({ ...biz, grid: v })} options={[{ value: 'res8', label: 'Standard · H3 res 8' }, { value: 'res7', label: 'Coarse · H3 res 7' }]} />
-              </div>
 
-              <div className="grid2" style={{ marginTop: 14 }}>
-                <Field label="What your business does" value={biz.businessActivity} onChange={(v) => setBiz({ ...biz, businessActivity: v })} placeholder="e.g. Specialty cafe roasting artisan coffee..." />
-                <Field label="Type of your business / Format" value={biz.businessType} onChange={(v) => setBiz({ ...biz, businessType: v })} placeholder="e.g. High-street outlet with takeaway counter" />
-              </div>
+      {/* Top Subheader with Business and Saved Locations Action Buttons */}
+      <div className="profile-subhdr">
+        <div className="col g4">
+          <div className="row g8 ac">
+            <h1 className="h3" style={{ margin: 0 }}>User Profile</h1>
+            <span className="tag ok">Active Account</span>
+          </div>
+          <span className="s13 muted">
+            Manage your personal credentials and key business overview at a glance.
+          </span>
+        </div>
 
-              {p.categories?.length > 0 && (
-                <div className="col g8" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
-                  <label className="s12 b muted">Selected Business Sectors</label>
-                  <div className="row g6 wrap">
-                    {p.categories.map((cKey) => {
-                      const cInfo = categories.find((c) => c.key === cKey);
-                      return (
-                        <span key={cKey} className="tag acc" style={{ padding: '4px 10px', fontSize: 12 }}>
-                          <Icon n={cInfo?.icon || 'store-2-line'} s={13} /> {cInfo?.name || cKey}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+        {/* Top-Right Action Buttons */}
+        <div className="row g10 wrap ac">
+          <Link to="/saved" className="btn out sm" title="View your bookmarked locations">
+            <Icon n="bookmark-line" s={16} c="var(--accent)" />
+            Saved Locations
+            {savedCount > 0 && <span className="tag sm" style={{ marginLeft: 4 }}>{savedCount}</span>}
+          </Link>
 
-              {(p.challenges?.length > 0 || biz.challengesNote) && (
-                <div className="col g8" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
-                  <label className="s12 b muted">Retail Challenges &amp; Expansion Hurdles</label>
-                  <Field label="Key expansion challenge note" value={biz.challengesNote} onChange={(v) => setBiz({ ...biz, challengesNote: v })} placeholder="e.g. High commercial rent, unpredictable footfall..." />
-                  {p.challenges?.length > 0 && (
-                    <div className="row g6 wrap" style={{ marginTop: 6 }}>
-                      {p.challenges.map((ch) => (
-                        <span key={ch} className="tag warn" style={{ padding: '4px 10px', fontSize: 12 }}>
-                          <Icon n="error-warning-line" s={13} /> {ch}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <Bar
-                dirty={bizDirty}
-                onSave={saveBiz}
-                onDiscard={() =>
-                  setBiz({
-                    name: user.name,
-                    businessName: p.businessName || '',
-                    businessActivity: p.businessActivity || '',
-                    businessType: p.businessType || '',
-                    challengesNote: p.challengesNote || '',
-                    role: p.role,
-                    focusAreas: (p.focusAreas || []).join(', '),
-                    grid: p.grid || 'res8',
-                  })
-                }
-              />
-            </Collapse>
-          </Sec>
-          <Sec refs={refs} id="stores"><Collapse open={section === 'stores'} title={<><Icon n="store-2-line" s={18} />My stores <span className="tag">{stores?.length ?? '…'}</span></>} right={<span className="hide-sm s12 muted">CSV: name, lat, lon, annual_revenue</span>}>
-            <div className="row g8 wrap" style={{ marginBottom: 12 }}><label className="btn out sm"><Icon n="upload-cloud-2-line" s={14} />Replace all (CSV)<input ref={fileRef} type="file" accept=".csv" hidden onChange={(e) => upload(e.target.files[0], 'replace')} /></label>
-              <label className="btn out sm"><Icon n="add-line" s={14} />Append from CSV<input type="file" accept=".csv" hidden onChange={(e) => upload(e.target.files[0], 'append')} /></label>
-              {upRes && <span className="s12 muted">Last import: {upRes.valid} valid · {upRes.imputed} imputed · {upRes.excluded} excluded</span>}</div>
-            {stores?.length === 0 && <Banner tone="info" icon="store-3-line">No stores loaded. Cannibalisation is skipped until you add stores.</Banner>}
-            {stores?.length > 0 && <div style={{ overflowX: 'auto', maxHeight: 360 }}><table className="t"><thead><tr><th>Store</th><th>Category</th><th>Annual revenue</th><th /></tr></thead><tbody>
-              {stores.map((s) => <tr key={s._id}><td className="b">{s.name}</td><td className="muted s12">{categories.find((c) => c.key === s.category)?.name}</td><td className="num">{inr(s.annualRevenue)}{s.revenueEstimated && <span className="tag warn" style={{ marginLeft: 6 }}>Estimated</span>}</td><td style={{ textAlign: 'right' }}><button className="iconbtn" style={{ width: 30, height: 30 }} onClick={() => delStore(s)} aria-label={`Delete ${s.name}`}><Icon n="delete-bin-line" s={15} /></button></td></tr>)}</tbody></table></div>}
-          </Collapse></Sec>
-          <Sec refs={refs} id="format"><Collapse open={section === 'format'} title={<><Icon n="equalizer-line" s={18} />Format &amp; economics</>} right={<span className="s12 muted hide-sm">{inrPlain(f.areaSqft)} sq ft · {Math.round((f.margin || 0) * 100)}% · {inr(f.opex)}</span>}>
-            <div className="grid3"><Field label="Store area" sim value={fmt.areaSqft} onChange={(v) => setFmt({ ...fmt, areaSqft: v })} suffix="sq ft" error={fmtErr.areaSqft} /><Field label="Gross margin" sim value={fmt.margin} onChange={(v) => setFmt({ ...fmt, margin: v })} suffix="%" error={fmtErr.margin} /><Field label="Operating cost / year" sim value={fmt.opex} onChange={(v) => setFmt({ ...fmt, opex: v })} suffix="₹" error={fmtErr.opex} help={inr(parseNum(fmt.opex))} />
-              <Field label="Capex" sim value={fmt.capex} onChange={(v) => setFmt({ ...fmt, capex: v })} suffix="₹" error={fmtErr.capex} help={inr(parseNum(fmt.capex))} /><Field label="Staff (FTE)" value={fmt.staff} onChange={(v) => setFmt({ ...fmt, staff: v })} suffix="people" /></div>
-            {f.extras && Object.keys(f.extras).length > 0 && <div className="row g6 wrap" style={{ marginTop: 12 }}>{Object.entries(f.extras).map(([k, v]) => <span key={k} className="tag">{cat?.fields?.find((x) => x.key === k)?.label || k}: {String(v === true ? 'Yes' : v === false ? 'No' : v)}</span>)}</div>}
-            <Bar dirty={fmtDirty} onSave={saveFmt} onDiscard={() => { setFmt(initFmt()); setFmtErr({}); }} note="Changing economics re-scores profit, tiers and break-even rent." /></Collapse></Sec>
-          <Sec refs={refs} id="goals"><Collapse open={section === 'goals'} title={<><Icon n="focus-3-line" s={18} />Goals &amp; constraints {goalsDirty && <span className="tag warn">Editing · unsaved</span>}</>}>
-            <div className="grid2"><Field label="Total budget" value={goals.budget} onChange={(v) => setGoals({ ...goals, budget: v })} suffix="₹" error={goalErr.budget || (goalsDirty && liveGoalErr.budget)} help={`${inr(parseNum(goals.budget))} · was ${inr(g.budget)}`} />
-              <Field label="Maximum rent" value={goals.maxRent} onChange={(v) => setGoals({ ...goals, maxRent: v })} suffix="₹/sq ft/month" error={goalErr.maxRent || (goalsDirty && liveGoalErr.maxRent)} help={`Was ₹${g.maxRent ?? '—'}`} />
-              <Field label="Minimum distance between picks" value={goals.minSpacingKm} onChange={(v) => setGoals({ ...goals, minSpacingKm: v })} suffix="km" error={goalErr.minSpacingKm || (goalsDirty && liveGoalErr.minSpacingKm)} />
-              <Field label="Minimum downside profit" value={goals.minP10Profit} onChange={(v) => setGoals({ ...goals, minP10Profit: v })} suffix="₹/yr" error={goalErr.minP10Profit || (goalsDirty && liveGoalErr.minP10Profit)} />
-              <Field label="Sites planned (k)" value={goals.k} onChange={(v) => setGoals({ ...goals, k: v })} error={goalErr.k || (goalsDirty && liveGoalErr.k)} />
-              <Field label="Risk appetite" value={goals.risk} onChange={(v) => setGoals({ ...goals, risk: v })} options={[{ value: 'conservative', label: 'Conservative' }, { value: 'balanced', label: 'Balanced' }, { value: 'aggressive', label: 'Aggressive' }]} /></div>
-            <div style={{ marginTop: 12 }}><Check on={goals.excludeLowConfidence} onClick={() => setGoals({ ...goals, excludeLowConfidence: !goals.excludeLowConfidence })} label="Exclude low-confidence and empty-market sites from default picks" /></div>
-            <Bar dirty={goalsDirty} onSave={saveGoals} disabled={Object.keys(liveGoalErr).length > 0} onDiscard={() => { setGoals(initGoals()); setGoalErr({}); }} note="Changing constraints re-scores your saved searches and dashboard picks." /></Collapse></Sec>
-          <div className="card pad20 row sb wrap g12"><div className="col g4"><b>Change business category</b><span className="s13 muted">Switching category resets format, drivers and constraints to that category’s defaults. Your stores stay.</span></div><button className="btn out" onClick={() => setCatModal(true)}><Icon n="shuffle-line" s={16} />Change category</button></div>
-          <Sec refs={refs} id="security"><Collapse open={section === 'security'} title={<><Icon n="lock-line" s={18} />Security</>}>
-            <div className="grid2"><Field label="Current password" type="password" value={pw.current} onChange={(v) => setPw({ ...pw, current: v })} error={pwErr.currentPassword} /><Field label="New password" type="password" value={pw.next} onChange={(v) => setPw({ ...pw, next: v })} error={pwErr.newPassword} help="8+ characters with a number" /></div>
-            <button className="btn ink sm" style={{ marginTop: 12 }} disabled={!pw.current || !pw.next} onClick={changePw}>Update password</button></Collapse></Sec>
-          <div className="card pad20 row sb wrap g12" style={{ borderColor: 'var(--bad)' }}><div className="col g4"><b className="badc">Delete account</b><span className="s13 muted">Removes your profile, uploads and saved locations. Recorded outcomes stay anonymised in calibration.</span></div><button className="btn out danger" onClick={() => setDelModal(true)}>Delete</button></div>
+          <Link to="/business" className="btn ink sm glow" title="Manage your full business, stores, and format economics">
+            <Icon n="building-2-line" s={16} />
+            Business
+            <Icon n="arrow-right-line" s={14} />
+          </Link>
         </div>
       </div>
+
+      <main className="wrapx col g24" style={{ padding: '32px 28px 64px', maxWidth: 960, margin: '0 auto' }}>
+        {/* User Hero Banner */}
+        <div className="card pad24 row sb wrap g20 ac" style={{ background: 'var(--surface)', border: '1.5px solid var(--line)', borderRadius: 20 }}>
+          <div className="row g16 ac wrap">
+            <div className="avatar" style={{ width: 68, height: 68, fontSize: 24, background: 'var(--accent)', color: '#fff', boxShadow: '0 4px 18px rgba(123,30,46,0.25)' }}>
+              {initials(user?.name)}
+            </div>
+            <div className="col g4">
+              <div className="row g10 ac">
+                <span className="b s18" style={{ color: 'var(--text)' }}>{user?.name}</span>
+                <span className="tag acc">{ROLE_LABEL[p.role] || p.role || 'Business Owner'}</span>
+              </div>
+              <span className="s13 muted">{user?.email}</span>
+              <span className="s12 b" style={{ color: 'var(--accent)' }}>
+                {p.businessName ? `Company: ${p.businessName}` : 'No company specified'}
+              </span>
+            </div>
+          </div>
+
+          <div className="row g8">
+            <button className="btn out sm" onClick={() => { logout(); nav('/login'); }} title="Sign out from this session">
+              <Icon n="logout-box-r-line" s={15} /> Sign out
+            </button>
+          </div>
+        </div>
+
+        {/* SECTION 1: Personal Details */}
+        <div className="profile-card-section">
+          <div className="row sb ac wrap g12" style={{ borderBottom: '1px solid var(--line)', paddingBottom: 14 }}>
+            <div className="row g10 ac">
+              <div className="iconbtn fill" style={{ background: 'var(--accentSoft)', color: 'var(--accent)', width: 36, height: 36 }}>
+                <Icon n="user-3-line" s={18} />
+              </div>
+              <div className="col">
+                <span className="b s16">Personal Details</span>
+                <span className="s12 muted">Your personal account credentials and role</span>
+              </div>
+            </div>
+
+            {!editPersonal ? (
+              <button className="btn out sm" onClick={() => setEditPersonal(true)}>
+                <Icon n="edit-line" s={14} /> Edit
+              </button>
+            ) : (
+              <div className="row g8">
+                <button className="btn ghost sm" onClick={cancelPersonal} disabled={personalBusy}>
+                  Cancel
+                </button>
+                <button className="btn ink sm" onClick={savePersonal} disabled={personalBusy}>
+                  {personalBusy ? <Icon n="loader-4-line" className="spin" s={14} /> : <Icon n="check-line" s={14} />}
+                  Save Changes
+                </button>
+              </div>
+            )}
+          </div>
+
+          {!editPersonal ? (
+            /* View Mode */
+            <div className="profile-info-grid">
+              <div className="profile-info-tile">
+                <span className="lbl">Full Name</span>
+                <span className="val">{user?.name || '—'}</span>
+              </div>
+
+              <div className="profile-info-tile">
+                <span className="lbl">Work Email</span>
+                <span className="val row g6 ac">
+                  <Icon n="mail-check-line" s={15} c="var(--ok)" />
+                  {user?.email || '—'}
+                </span>
+              </div>
+
+              <div className="profile-info-tile">
+                <span className="lbl">Role / Designation</span>
+                <span className="val">{ROLE_LABEL[p.role] || p.role || 'Business Owner'}</span>
+              </div>
+
+              <div className="profile-info-tile">
+                <span className="lbl">Primary Territory</span>
+                <span className="val row g6 ac">
+                  <Icon n="map-pin-line" s={15} c="var(--accent)" />
+                  Pune &amp; PCMC
+                </span>
+              </div>
+            </div>
+          ) : (
+            /* Edit Mode */
+            <div className="col g16" style={{ background: 'var(--surface)', padding: 18, borderRadius: 14, border: '1px solid var(--line)' }}>
+              <div className="grid2">
+                <div className="field">
+                  <label className="b s13">Full Name *</label>
+                  <div className="input">
+                    <Icon n="user-line" s={16} c="var(--muted)" />
+                    <input
+                      autoFocus
+                      value={personalForm.name}
+                      onChange={(e) => setPersonalForm({ ...personalForm, name: e.target.value })}
+                      placeholder="Your full name"
+                    />
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label className="b s13">Role / Designation</label>
+                  <div className="input">
+                    <Icon n="briefcase-line" s={16} c="var(--muted)" />
+                    <select
+                      value={personalForm.role}
+                      onChange={(e) => setPersonalForm({ ...personalForm, role: e.target.value })}
+                    >
+                      {Object.entries(ROLE_LABEL).map(([val, lbl]) => (
+                        <option key={val} value={val}>{lbl}</option>
+                      ))}
+                    </select>
+                    <Icon n="arrow-down-s-line" s={16} c="var(--muted)" />
+                  </div>
+                </div>
+              </div>
+              <span className="s12 muted">Email address is permanently bound to this workspace. Contact admin to change email.</span>
+            </div>
+          )}
+        </div>
+
+        {/* SECTION 2: Business at a Glance */}
+        <div className="profile-card-section">
+          <div className="row sb ac wrap g12" style={{ borderBottom: '1px solid var(--line)', paddingBottom: 14 }}>
+            <div className="row g10 ac">
+              <div className="iconbtn fill" style={{ background: 'var(--accentSoft)', color: 'var(--accent)', width: 36, height: 36 }}>
+                <Icon n="building-2-line" s={18} />
+              </div>
+              <div className="col">
+                <span className="b s16">Business at a Glance</span>
+                <span className="s12 muted">Primary company profile and key operational metrics</span>
+              </div>
+            </div>
+
+            <div className="row g8 ac">
+              {!editBusiness ? (
+                <>
+                  <Link to="/business" className="btn ghost sm" style={{ color: 'var(--accent)' }}>
+                    Full Settings <Icon n="arrow-right-s-line" s={16} />
+                  </Link>
+                  <button className="btn out sm" onClick={() => setEditBusiness(true)}>
+                    <Icon n="edit-line" s={14} /> Edit
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="btn ghost sm" onClick={cancelBusiness} disabled={bizBusy}>
+                    Cancel
+                  </button>
+                  <button className="btn ink sm" onClick={saveBusiness} disabled={bizBusy}>
+                    {bizBusy ? <Icon n="loader-4-line" className="spin" s={14} /> : <Icon n="check-line" s={14} />}
+                    Save Changes
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {!editBusiness ? (
+            /* View Mode */
+            <div className="col g20">
+              <div className="profile-info-grid">
+                <div className="profile-info-tile">
+                  <span className="lbl">Company Name</span>
+                  <span className="val" style={{ color: 'var(--accent)' }}>{p.businessName || 'Not configured'}</span>
+                </div>
+
+                <div className="profile-info-tile">
+                  <span className="lbl">Primary Category</span>
+                  <span className="val row g6 ac">
+                    <Icon n={cat?.icon || 'store-2-line'} s={16} c="var(--accent)" />
+                    {cat?.name || 'Retail'}
+                  </span>
+                </div>
+
+                <div className="profile-info-tile">
+                  <span className="lbl">Operational Format</span>
+                  <span className="val">{p.businessType || 'Standard Retail Outlet'}</span>
+                </div>
+
+                <div className="profile-info-tile">
+                  <span className="lbl">Business Offering</span>
+                  <span className="val" style={{ fontSize: 13, fontWeight: 500 }}>
+                    {p.businessActivity || 'Retail goods and customer service'}
+                  </span>
+                </div>
+              </div>
+
+              {/* 4 Key Business Metrics Tiles */}
+              <div className="grid4">
+                <div className="metric-pill-card">
+                  <div className="metric-pill-icon">
+                    <Icon n="store-3-line" />
+                  </div>
+                  <div className="col g2">
+                    <span className="s11 muted b">STORE NETWORK</span>
+                    <span className="b s16">{storesCount} {storesCount === 1 ? 'Store' : 'Stores'}</span>
+                  </div>
+                </div>
+
+                <div className="metric-pill-card">
+                  <div className="metric-pill-icon">
+                    <Icon n="ruler-line" />
+                  </div>
+                  <div className="col g2">
+                    <span className="s11 muted b">STORE FOOTPRINT</span>
+                    <span className="b s16">{p.format?.areaSqft ? `${p.format.areaSqft} sq ft` : 'Standard'}</span>
+                  </div>
+                </div>
+
+                <div className="metric-pill-card">
+                  <div className="metric-pill-icon">
+                    <Icon n="money-dollar-circle-line" />
+                  </div>
+                  <div className="col g2">
+                    <span className="s11 muted b">EXPANSION BUDGET</span>
+                    <span className="b s16">{p.goals?.budget ? inr(p.goals.budget) : 'Flexible'}</span>
+                  </div>
+                </div>
+
+                <div className="metric-pill-card">
+                  <div className="metric-pill-icon">
+                    <Icon n="percent-line" />
+                  </div>
+                  <div className="col g2">
+                    <span className="s11 muted b">GROSS MARGIN</span>
+                    <span className="b s16">{p.format?.margin ? `${Math.round(p.format.margin * 100)}%` : 'Standard'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Edit Mode */
+            <div className="col g16" style={{ background: 'var(--surface)', padding: 18, borderRadius: 14, border: '1px solid var(--line)' }}>
+              <div className="grid2">
+                <div className="field">
+                  <label className="b s13">Company / Business Name *</label>
+                  <div className="input">
+                    <Icon n="building-2-line" s={16} c="var(--muted)" />
+                    <input
+                      autoFocus
+                      value={bizForm.businessName}
+                      onChange={(e) => setBizForm({ ...bizForm, businessName: e.target.value })}
+                      placeholder="e.g. Chai Point Express"
+                    />
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label className="b s13">Operational Format / Type</label>
+                  <div className="input">
+                    <Icon n="store-line" s={16} c="var(--muted)" />
+                    <input
+                      value={bizForm.businessType}
+                      onChange={(e) => setBizForm({ ...bizForm, businessType: e.target.value })}
+                      placeholder="e.g. Flagship Outlet, Boutique, QSR"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="field">
+                <label className="b s13">What your business does (Offering)</label>
+                <div className="input">
+                  <Icon n="chat-voice-line" s={16} c="var(--muted)" />
+                  <input
+                    value={bizForm.businessActivity}
+                    onChange={(e) => setBizForm({ ...bizForm, businessActivity: e.target.value })}
+                    placeholder="e.g. Specialty coffee roasting and artisanal pastry cafe"
+                  />
+                </div>
+              </div>
+
+              <div className="grid2">
+                <div className="field">
+                  <label className="b s13">Store Footprint / Floor Area (sq ft)</label>
+                  <div className="input">
+                    <Icon n="ruler-line" s={16} c="var(--muted)" />
+                    <input
+                      type="number"
+                      value={bizForm.areaSqft}
+                      onChange={(e) => setBizForm({ ...bizForm, areaSqft: e.target.value })}
+                      placeholder="e.g. 1200"
+                    />
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label className="b s13">Target Expansion Budget (₹)</label>
+                  <div className="input">
+                    <Icon n="money-dollar-circle-line" s={16} c="var(--muted)" />
+                    <input
+                      type="number"
+                      value={bizForm.budget}
+                      onChange={(e) => setBizForm({ ...bizForm, budget: e.target.value })}
+                      placeholder="e.g. 5000000"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SECTION 3: Account Controls & Danger Zone */}
+        <div className="card pad20 row sb wrap g16 ac" style={{ borderColor: 'var(--line)', background: 'var(--surface)' }}>
+          <div className="col g4">
+            <span className="b s14">Workspace Session</span>
+            <span className="s12 muted">Sign out from this device or permanently delete your account and personal records.</span>
+          </div>
+
+          <div className="row g10 wrap">
+            <button className="btn out sm" onClick={() => { logout(); nav('/login'); }}>
+              <Icon n="logout-box-r-line" s={15} /> Log out
+            </button>
+            <button className="btn out danger sm" onClick={() => setDelModal(true)}>
+              <Icon n="delete-bin-line" s={15} /> Delete Account
+            </button>
+          </div>
+        </div>
+      </main>
+
       <Footer />
-      <Modal open={catModal} onClose={() => setCatModal(false)} title="Change business category">
-        <div className="col g12"><Banner tone="warn" icon="error-warning-line">Format, drivers and constraints reset to the new category’s defaults. Your stores and saved locations stay.</Banner>
-          <Field label="New category" value={newCat} onChange={setNewCat} options={categories.map((c) => ({ value: c.key, label: c.name }))} />
-          <div className="row g8"><button className="btn ghost" onClick={() => setCatModal(false)}>Cancel</button><button className="btn ink" disabled={newCat === p.category} onClick={changeCat}>Change category</button></div></div>
-      </Modal>
+
+      {/* Delete Account Modal */}
       <Modal open={delModal} onClose={() => setDelModal(false)} title="Delete your account?">
-        <div className="col g12"><p className="s13 muted">This cannot be undone. Type <b style={{ color: 'var(--text)' }}>DELETE</b> to confirm.</p><Field value={confirmText} onChange={setConfirmText} placeholder="DELETE" />
-          <div className="row g8"><button className="btn ghost" onClick={() => setDelModal(false)}>Cancel</button><button className="btn pri" disabled={confirmText !== 'DELETE'} onClick={deleteAccount}>Delete account</button></div></div>
+        <div className="col g14">
+          <Banner tone="bad" icon="error-warning-line">
+            This will permanently remove your user profile, uploads, and saved locations. This action cannot be undone.
+          </Banner>
+          <p className="s13 muted">
+            Please type <b style={{ color: 'var(--text)' }}>DELETE</b> below to confirm account removal.
+          </p>
+          <div className="input">
+            <input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="DELETE"
+            />
+          </div>
+          <div className="row g8 jc">
+            <button className="btn ghost" onClick={() => setDelModal(false)}>
+              Cancel
+            </button>
+            <button
+              className="btn pri"
+              disabled={confirmText !== 'DELETE' || delBusy}
+              onClick={deleteAccount}
+            >
+              {delBusy && <Icon n="loader-4-line" className="spin" />} Delete Account
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

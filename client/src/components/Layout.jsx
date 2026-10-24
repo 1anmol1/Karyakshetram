@@ -56,8 +56,16 @@ function LocalityPicker() {
 }
 
 const NAV = [
-  ['/app', 'dashboard-line', 'Dashboard'], ['/app?find=1', 'search-eye-line', 'Find locations'], ['/check', 'crosshair-2-line', 'Check a location'], ['/compare', 'scales-3-line', 'Compare sites'],
-  ['/cannibalisation', 'git-merge-line', 'Cannibalisation'], ['/portfolio', 'node-tree', 'Portfolio planner'], ['/saved', 'bookmark-line', 'Saved'], ['/trust', 'shield-check-line', 'Trust Center'], ['/profile', 'user-line', 'Profile'],
+  ['/app', 'dashboard-line', 'Dashboard'],
+  ['/business', 'building-2-line', 'Business'],
+  ['/app?find=1', 'search-eye-line', 'Find locations'],
+  ['/check', 'crosshair-2-line', 'Check a location'],
+  ['/compare', 'scales-3-line', 'Compare sites'],
+  ['/cannibalisation', 'git-merge-line', 'Cannibalisation'],
+  ['/portfolio', 'node-tree', 'Portfolio planner'],
+  ['/saved', 'bookmark-line', 'Saved'],
+  ['/trust', 'shield-check-line', 'Trust Center'],
+  ['/profile', 'user-line', 'Profile'],
 ];
 
 function Drawer({ onClose }) {
@@ -74,7 +82,7 @@ function Drawer({ onClose }) {
       </div>
       {NAV.map(([to, ic, t]) => <NavLink key={t} to={to} onClick={onClose} className={() => `navitem ${loc.pathname + loc.search === to || (to === '/app' && loc.pathname === '/app' && !loc.search) ? 'on' : ''}`}><Icon n={ic} s={18} />{t}</NavLink>)}
       <div className="divider" style={{ margin: '10px 0' }} />
-      <NavLink to="/profile#business" onClick={onClose} className="navitem"><Icon n="add-circle-line" s={18} />Add your business</NavLink>
+      <NavLink to="/business" onClick={onClose} className="navitem"><Icon n="building-2-line" s={18} />Business &amp; stores</NavLink>
       <Link to="/guide" className="navitem" onClick={onClose}><Icon n="question-line" s={18} />Help &amp; guide</Link>
       <button className="navitem" style={{ color: 'var(--bad)' }} onClick={() => { logout(); onClose(); nav('/login'); }}><Icon n="logout-box-r-line" s={18} />Sign out</button>
     </nav>

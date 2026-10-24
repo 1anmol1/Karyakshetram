@@ -1060,26 +1060,33 @@ export default function Dashboard() {
 
         {/* right: Add your business + AI summary + Karyakshetra insights */}
         <aside className="col g12" style={{ width: 340 }}>
-          {/* Add your business action card - placed below the hamburger menu on the page */}
-          <div className="card pad16 col g10 shadow add-business-card" style={{ background: 'var(--surface)', border: '1px solid var(--line)' }}>
-            <div className="row sb ac">
-              <span className="row g8 b s14"><Icon n="building-2-line" s={18} c="var(--accent2)" />Add your business</span>
-              <span className="tag ok">{myStores.length > 0 ? `${myStores.length} Active` : 'Setup'}</span>
-            </div>
-            <p className="s12 muted" style={{ margin: 0, lineHeight: 1.5 }}>
-              {myStores.length > 0
-                ? `You have ${myStores.length} store${myStores.length > 1 ? 's' : ''} in your network. Add more to include them with other businesses & compute cannibalisation.`
-                : 'Configure your business locations to display them in the shops list and compute cannibalisation risk.'}
-            </p>
-            <div className="row g8">
-              <button className="btn ink sm f1" style={{ justifyContent: 'center' }} onClick={() => setAddBizOpen(true)}>
-                <Icon n="add-line" s={15} />Add Business
-              </button>
-              <button className="btn out sm" style={{ padding: '0 10px' }} title="Bulk CSV import / Store settings" onClick={() => nav('/profile#business')}>
-                <Icon n="settings-3-line" s={15} />
-              </button>
-            </div>
-          </div>
+          {/* Simple Business Button redirecting to /business page */}
+          <button
+            className="btn out sm"
+            style={{
+              width: '100%',
+              height: 44,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0 16px',
+              borderRadius: 14,
+              background: 'var(--surface)',
+              border: '1.5px solid var(--line)',
+              transition: 'all 0.22s ease',
+            }}
+            onClick={() => nav('/business')}
+            title="Manage business, formats, unit economics, and store locations"
+          >
+            <span className="row g8 b s14" style={{ color: 'var(--text)' }}>
+              <Icon n="building-2-line" s={18} c="var(--accent)" />
+              Business
+            </span>
+            <span className="row g6 s12 muted ac">
+              {myStores.length > 0 ? `${myStores.length} store${myStores.length > 1 ? 's' : ''}` : 'Configure'}
+              <Icon n="arrow-right-s-line" s={16} />
+            </span>
+          </button>
 
           <div className="card pad16 col g12 shadow ai-summary-card">
             <div className="row sb ac">
@@ -1217,9 +1224,9 @@ export default function Dashboard() {
             <div className="card pad20 col ac jc g10" style={{ gridColumn: '1 / -1', textAlign: 'center', background: 'var(--surface)', border: '1px dashed var(--line)' }}>
               <Icon n="store-2-line" s={32} c="var(--accent)" />
               <div className="b s15">No stores found for this filter</div>
-              <p className="s13 muted" style={{ maxWidth: 420 }}>Add your business location to display it here alongside competitors and anchor businesses.</p>
-              <button className="btn ink sm" onClick={() => setAddBizOpen(true)}>
-                <Icon n="add-line" s={14} /> Add your business
+              <p className="s13 muted" style={{ maxWidth: 420 }}>Manage your business locations and stores on the dedicated business page.</p>
+              <button className="btn ink sm" onClick={() => nav('/business')}>
+                <Icon n="building-2-line" s={14} /> Business &amp; Stores
               </button>
             </div>
           ) : (

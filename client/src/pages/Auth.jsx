@@ -35,25 +35,6 @@ export default function Auth({ mode }) {
     setErrs((e) => ({ ...e, [k]: undefined }));
   };
 
-  const fillSample = () => {
-    if (signup) {
-      setF({
-        name: 'Karyakshetram User',
-        email: SAMPLE_EMAIL,
-        password: SAMPLE_PASSWORD,
-        accept: true,
-        remember: true,
-      });
-    } else {
-      setF((x) => ({
-        ...x,
-        email: SAMPLE_EMAIL,
-        password: SAMPLE_PASSWORD,
-      }));
-    }
-    setErrs({});
-    toast('Sample credentials filled! Click to proceed.', { tone: 'ok', icon: 'checkbox-circle-fill' });
-  };
 
   const submit = async (e) => {
     e?.preventDefault?.();
@@ -259,31 +240,22 @@ export default function Auth({ mode }) {
               {signup ? 'Create account' : 'Sign in'}
             </button>
 
-            <div className="sample-cred-card">
-              <div className="row sb ac wrap g8">
-                <div className="row g6 ac">
+            {!signup && (
+              <div className="sample-cred-card">
+                <div className="row g6 ac" style={{ marginBottom: 4 }}>
                   <span className="tag acc">Sample Credentials</span>
-                  <span className="s12 muted">Quick test</span>
+                  <span className="s12 muted">Fill these to test sign in</span>
                 </div>
-                <button
-                  type="button"
-                  className="sample-fill-btn"
-                  onClick={fillSample}
-                  title="Auto-fill sample credentials"
-                >
-                  <Icon n="magic-line" s={14} />
-                  Auto-fill Sample
-                </button>
+                <div className="row sb ac wrap g8 s12" style={{ borderTop: '1px dashed var(--line)', paddingTop: 8 }}>
+                  <span className="muted">
+                    Email: <b style={{ color: 'var(--text)' }}>{SAMPLE_EMAIL}</b>
+                  </span>
+                  <span className="muted">
+                    Password: <b style={{ color: 'var(--text)' }}>{SAMPLE_PASSWORD}</b>
+                  </span>
+                </div>
               </div>
-              <div className="row sb ac wrap g8 s12" style={{ borderTop: '1px dashed var(--line)', paddingTop: 8 }}>
-                <span className="muted">
-                  Email: <b style={{ color: 'var(--text)' }}>{SAMPLE_EMAIL}</b>
-                </span>
-                <span className="muted">
-                  Password: <b style={{ color: 'var(--text)' }}>{SAMPLE_PASSWORD}</b>
-                </span>
-              </div>
-            </div>
+            )}
 
             <div className="s13 muted" style={{ textAlign: 'center', marginTop: 4 }}>
               {signup ? (

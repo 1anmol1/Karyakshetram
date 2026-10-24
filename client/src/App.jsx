@@ -12,6 +12,7 @@ import Check from './pages/Check.jsx';
 import Portfolio from './pages/Portfolio.jsx';
 import Trust from './pages/Trust.jsx';
 import Profile from './pages/Profile.jsx';
+import Business from './pages/Business.jsx';
 import Saved from './pages/Saved.jsx';
 import Guide from './pages/Guide.jsx';
 import NotFound from './pages/NotFound.jsx';
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="/compare" element={<Compare />} />
         <Route path="/check" element={<Check />} />
         <Route path="/portfolio" element={<Portfolio />} />
+        <Route path="/business" element={<Business />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/saved" element={<Saved />} />
       </Route>
