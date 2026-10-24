@@ -30,6 +30,7 @@ a{color:inherit;text-decoration:none}
 input::placeholder,textarea::placeholder{color:var(--faint)}
 :focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
 .page{max-width:1440px;margin:0 auto}
+.page.page-full{max-width:100%!important;width:100%!important;margin:0!important}
 .wrapx{padding-left:28px;padding-right:28px}
 .row{display:flex;align-items:center}.col{display:flex;flex-direction:column}
 .g4{gap:4px}.g6{gap:6px}.g8{gap:8px}.g10{gap:10px}.g12{gap:12px}.g16{gap:16px}.g20{gap:20px}.g24{gap:24px}.g32{gap:32px}
@@ -190,6 +191,63 @@ input[type=range].rng::-moz-range-thumb{width:16px;height:16px;border-radius:50%
 
 .ai-summary-card{background:linear-gradient(145deg,var(--bg) 0%,rgba(226,59,59,.06) 55%,var(--surface) 100%);border:1px solid rgba(226,59,59,.22);position:relative;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.04)}
 :root[data-theme="dark"] .ai-summary-card{background:linear-gradient(145deg,var(--bg) 0%,rgba(229,72,77,.1) 55%,var(--surface) 100%);border:1px solid rgba(229,72,77,.25)}
+
+/* Karyakshetra Insights Card with still gradient + continuous passing gradient wave on hover */
+.karyakshetra-insights-card{
+  background:linear-gradient(145deg,var(--bg) 0%,rgba(226,59,59,.06) 55%,var(--surface) 100%);
+  border:1px solid rgba(226,59,59,.22);
+  position:relative;
+  overflow:hidden;
+  box-shadow:0 4px 18px rgba(0,0,0,.04);
+  transition:border-color .3s ease,box-shadow .3s ease;
+}
+:root[data-theme="dark"] .karyakshetra-insights-card{
+  background:linear-gradient(145deg,var(--bg) 0%,rgba(229,72,77,.1) 55%,var(--surface) 100%);
+  border:1px solid rgba(229,72,77,.25);
+}
+.karyakshetra-insights-card::before{
+  content:'';
+  position:absolute;
+  top:0;
+  left:-150%;
+  width:150%;
+  height:100%;
+  background:linear-gradient(90deg,transparent 0%,rgba(226,59,59,.03) 20%,rgba(226,59,59,.2) 50%,rgba(255,120,120,.28) 65%,rgba(226,59,59,.2) 80%,transparent 100%);
+  transform:skewX(-25deg);
+  opacity:0;
+  pointer-events:none;
+  z-index:1;
+  transition:opacity .3s ease;
+}
+:root[data-theme="dark"] .karyakshetra-insights-card::before{
+  background:linear-gradient(90deg,transparent 0%,rgba(229,72,77,.04) 20%,rgba(229,72,77,.25) 50%,rgba(255,140,140,.32) 65%,rgba(229,72,77,.25) 80%,transparent 100%);
+}
+.karyakshetra-insights-card:hover::before{
+  opacity:1;
+  animation:passingGradientWave 2.2s linear infinite;
+}
+@keyframes passingGradientWave{
+  0%{left:-150%}
+  100%{left:150%}
+}
+.karyakshetra-insights-card>*{
+  position:relative;
+  z-index:2;
+}
+.inshort-item{
+  padding:7px 10px;
+  border-radius:8px;
+  background:var(--surface);
+  border:1px solid var(--line);
+  transition:background .2s ease,transform .2s ease;
+}
+:root[data-theme="dark"] .inshort-item{
+  background:rgba(255,255,255,.03);
+}
+.inshort-item:hover{
+  background:var(--surface2);
+  transform:translateY(-1px);
+}
 
 .trend-item-row:hover{background:var(--surface)}
 .range{position:relative;height:8px;border-radius:99px;background:var(--surface2)}
@@ -933,15 +991,16 @@ table.t tr.click{cursor:pointer}table.t tr.click:hover td{background:var(--surfa
   animation:fadeInArea 1.4s ease forwards;
 }
 .graph-metric-pill{
-  padding:6px 14px;
-  border-radius:999px;
-  font-size:12px;
-  font-weight:700;
+  padding:3px 9px;
+  border-radius:6px;
+  font-size:11px;
+  font-weight:600;
+  line-height:1.2;
   display:inline-flex;
   align-items:center;
-  gap:6px;
+  gap:5px;
   cursor:pointer;
-  border:1.5px solid var(--line);
+  border:1px solid var(--line);
   background:var(--bg);
   color:var(--muted);
   transition:all .2s ease;

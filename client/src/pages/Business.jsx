@@ -509,7 +509,7 @@ export default function Business() {
 
             <div className="row sb ac wrap g12" style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}>
               <span className="s12 muted">
-                Store will be automatically snapped to the nearest H3 hexagonal spatial cell for cannibalisation analysis.
+                Store will be automatically snapped to the nearest hexagonal spatial cell for cannibalisation analysis.
               </span>
               <div className="row g8">
                 <button type="button" className="btn ghost sm" onClick={() => setAddStoreOpen(false)}>

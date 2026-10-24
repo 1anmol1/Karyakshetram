@@ -33,20 +33,23 @@ export default function Location() {
 
   const site = d.data?.site;
   const pick = picks.find((p) => p.cell === cellId);
+  const hexIndex = pick ? picks.indexOf(pick) + 1 : site?.rank || (((parseInt((site?.cell || cellId).slice(-4), 16) || 7) % 12) + 1);
+  const hexLabel = `H${hexIndex}`;
+  const hexLocationName = `${hexLabel} in ${site?.locality || 'Location'}`;
   const shareUrl = window.location.href;
   const share = async () => {
-    try { if (navigator.share) await navigator.share({ title: `Karyakshetram · ${site.locality}`, url: shareUrl }); else { await navigator.clipboard.writeText(shareUrl); toast('Link copied', { icon: 'link' }); } }
+    try { if (navigator.share) await navigator.share({ title: `Karyakshetram · ${hexLocationName}`, url: shareUrl }); else { await navigator.clipboard.writeText(shareUrl); toast('Link copied', { icon: 'link' }); } }
     catch { /* cancelled */ }
   };
   const toggleSave = async () => {
     try {
       if (savedId) { await api(`/saved/${savedId}`, { method: 'DELETE' }); setSavedId(null); toast('Removed from saved', { icon: 'bookmark-line', tone: 'info' }); }
-      else { const r = await api('/saved', { method: 'POST', body: { cellId, category, name: site.locality } }); setSavedId(r.saved._id); toast('Saved to Shortlist', { icon: 'bookmark-fill', tone: 'acc' }); }
+      else { const r = await api('/saved', { method: 'POST', body: { cellId, category, name: hexLocationName } }); setSavedId(r.saved._id); toast('Saved to Shortlist', { icon: 'bookmark-fill', tone: 'acc' }); }
     } catch (e) { toast(e.message, { tone: 'bad', icon: 'error-warning-line' }); }
   };
 
-  if (d.error) return <div className="page"><Header back /><div className="wrapx" style={{ padding: 40 }}><div className="card"><ErrorBox error={d.error} onRetry={d.refetch} /></div></div></div>;
-  if (!site) return <div className="page"><Header back /><div className="wrapx col g16" style={{ padding: '20px 28px' }}><Skel h={400} style={{ borderRadius: 18 }} /><Skel h={34} w="50%" /><Skel h={140} style={{ borderRadius: 16 }} /></div></div>;
+  if (d.error) return <div className="page page-full"><Header back /><div className="wrapx" style={{ padding: 40 }}><div className="card"><ErrorBox error={d.error} onRetry={d.refetch} /></div></div></div>;
+  if (!site) return <div className="page page-full"><Header back /><div className="wrapx col g16" style={{ padding: '20px 28px' }}><Skel h={420} style={{ borderRadius: 18 }} /><Skel h={34} w="50%" /><Skel h={140} style={{ borderRadius: 16 }} /></div></div>;
 
   const eligible = site.eligible.ok;
   const cn = site.cannibalisation;
@@ -54,18 +57,18 @@ export default function Location() {
   const whatIf = rent != null ? (() => { const r = Number(rent); const e = site.revenue.p50 * site.margin - r * site.area * 12 - site.opex; const p10 = site.revenue.p10 * site.margin - r * site.area * 12 - site.opex; return { e, p10, tier: p10 > 0 ? 'A' : e > 0 ? 'B' : 'C' }; })() : null;
 
   return (
-    <div className="page">
+    <div className="page page-full">
       <Header back />
       <SystemBanners />
-      <div className="row as wrapx stack-md" style={{ padding: '20px 28px 40px', gap: 24 }}>
+      <div className="row as wrapx stack-md" style={{ padding: '20px clamp(16px, 2.5vw, 36px) 48px', gap: 28, width: '100%', boxSizing: 'border-box' }}>
         <div className="col g16 f1" style={{ minWidth: 0 }}>
-          <div style={{ height: 380, position: 'relative' }}>
-            <HexMap features={hex.data?.features.filter((f) => { const [lo, la] = f.geometry.coordinates[0][0]; return Math.abs(la - site.lat) < 0.04 && Math.abs(lo - site.lon) < 0.045; })} selected={cellId} picks={[{ lat: site.lat, lon: site.lon, n: pick ? picks.indexOf(pick) + 1 : '' }]} rings={[{ lat: site.lat, lon: site.lon, km: site.catchment.km }]} comps={comps} center={[site.lat, site.lon]} zoom={14} legend={false} controls={true} />
+          <div style={{ height: 420, position: 'relative', borderRadius: 16, overflow: 'hidden' }}>
+            <HexMap features={hex.data?.features.filter((f) => { const [lo, la] = f.geometry.coordinates[0][0]; return Math.abs(la - site.lat) < 0.04 && Math.abs(lo - site.lon) < 0.045; })} selected={cellId} picks={[{ lat: site.lat, lon: site.lon, n: hexIndex }]} rings={[{ lat: site.lat, lon: site.lon, km: site.catchment.km }]} comps={comps} center={[site.lat, site.lon]} zoom={14} legend={false} controls={true} />
             <span className="tag maptag" style={{ left: 14, top: 14, background: 'var(--bg)', height: 28 }}><Icon n="map-pin-2-line" s={14} />{site.catchment.km} km {catInfo?.name.toLowerCase() || ''} catchment · {comps.length} competitors</span>
           </div>
-          <h1 className="h2">{site.locality} <span className="muted s16" style={{ fontWeight: 400 }}>· {pick?.label || 'Location'}</span></h1>
+          <h1 className="h2">{hexLocationName} <span className="muted s16" style={{ fontWeight: 400 }}>· {pick?.label || 'Location'}</span></h1>
           <div className="row sb wrap g12">
-            <div className="row g8 wrap">{eligible ? <Tier t={site.tier} /> : <span className="tag bad">Not suitable</span>}{pick && <span className="tag acc"><Icon n={pick.icon} s={12} />{pick.label}</span>}<Conf c={site.confidence} /><Sim /><span className="s12 muted">H3 {site.cell}</span></div>
+            <div className="row g8 wrap">{eligible ? <Tier t={site.tier} /> : <span className="tag bad">Not suitable</span>}{pick && <span className="tag acc"><Icon n={pick.icon} s={12} />{pick.label}</span>}<Conf c={site.confidence} /><Sim /><span className="tag ok" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon n="hexagon-line" s={13} />Hexagon {hexLabel}</span></div>
             <div className="row g8 wrap">
               <button className="btn out" onClick={share}><Icon n="share-forward-line" s={16} />Share</button>
               <button className={`btn ${ai ? 'pri' : 'out'}`} onClick={() => setAi(!ai)} aria-pressed={ai}><Icon n="sparkling-2-line" s={16} c={ai ? '#fff' : 'var(--accent2)'} />AI summary</button>
@@ -135,7 +138,7 @@ export default function Location() {
                 : <span className="s12 muted">Drag slider to test rent sensitivity. Break-even ceiling is <b>₹{Math.round(site.breakevenRent)} / sq ft / mo</b>.</span>}
             </div>
           </div>}
-          <div className="col g10"><div className="h4">Site photos</div><div className="row g10">{[1, 2, 3, 4].map((i) => <div key={i} className="photo f1" style={{ height: 130 }}><Photo seed={i + 10 + cellId.charCodeAt(9)} h={130} caption={i === 1 ? 'Illustration' : ''} /></div>)}</div>
+          <div className="col g10"><div className="h4">Site photos</div><div className="row g10">{[1, 2, 3, 4].map((i) => <div key={i} className="photo f1" style={{ height: 150 }}><Photo seed={i + 10 + cellId.charCodeAt(9)} h={150} caption={i === 1 ? 'Illustration' : ''} /></div>)}</div>
             <span className="s11 muted">Illustrations until photos are added from a site visit.</span></div>
           <div className="card pad16 row sb wrap g12">
             <span className="row g10 s13"><b>Was this recommendation useful?</b>
@@ -145,7 +148,7 @@ export default function Location() {
           </div>
         </div>
 
-        <aside style={{ width: 440, maxWidth: '100%', position: 'relative' }} className="col g12">
+        <aside style={{ width: 440, minWidth: 360, maxWidth: '100%', position: 'relative' }} className="col g12">
           {ai ? <AiPanel cellId={cellId} category={category} ex={ex} onClose={() => setAi(false)} /> : <>
             <div className="row g8 wrap">{[['all', 'All'], ['tierA', 'Tier A'], ['nearby', 'Nearby'], ['lowerRent', 'Lower rent']].map(([k, t]) => <button key={k} className={`chip ${simFilter === k ? 'on' : ''}`} onClick={() => setSimFilter(k)}>{t}</button>)}</div>
             <div className="b s15">Similar locations</div>

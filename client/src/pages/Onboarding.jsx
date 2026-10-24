@@ -48,7 +48,7 @@ const CHALLENGE_ITEMS = [
 ];
 
 const PRELOADER_MESSAGES = [
-  'Calibrating 949 H3 spatial hexagonal cells across Pune & PCMC…',
+  'Calibrating 949 spatial hexagonal cells across Pune & PCMC…',
   'Synthesizing neighborhood demographic indices & spending power…',
   'Constructing competitor density vectors & pedestrian catchment friction…',
   'Formulating calibrated P10–P90 revenue distribution curves…',

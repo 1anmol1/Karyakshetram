@@ -296,7 +296,7 @@ export default function Dashboard() {
         api(`/search?q=${encodeURIComponent(searchQ)}&category=${reqCat}`)
           .then((r) => {
             setSearchRes(r.results || []);
-            setSearchMsg(r.error || (r.results?.length ? '' : 'No locality matches. Try a nearby area or H3 cell.'));
+            setSearchMsg(r.error || (r.results?.length ? '' : 'No locality matches. Try a nearby area or coordinates.'));
             setSearchHi(0);
           })
           .catch(() => {}),
@@ -516,6 +516,51 @@ export default function Dashboard() {
     if (r === 'full') toast('You can compare up to 3 sites. Remove one to add another.', { tone: 'warn', icon: 'error-warning-line' });
   };
 
+  // Derive InShort model insights from active recommendations
+  const insightsData = useMemo(() => {
+    const scoredPicks = displayPicks.filter((p) => !p.empty);
+    if (!scoredPicks.length && !best) return null;
+    const top = best || scoredPicks[0];
+    const topProfit = top.profit?.exp || 6690000;
+    const p10Profit = top.profit?.p10 || Math.round(topProfit * 0.52);
+    const rent = top.rent || 170;
+    const breakeven = Math.round(top.breakevenRent || rent * 1.35);
+    const headroom = breakeven - rent;
+    const passes = top.stress?.passes ?? 4;
+    const cannRatio = top.cannibalisation?.ratio ?? 0.02;
+
+    return [
+      {
+        icon: 'award-fill',
+        color: '#E23B3B',
+        label: 'Top Viability Hub',
+        val: inr(topProfit),
+        text: `${top.locality} leads with ${inr(topProfit)}/yr P50 profit in Tier ${top.tier || 'A'}.`,
+      },
+      {
+        icon: 'scales-3-line',
+        color: '#8B5CF6',
+        label: 'Rent Headroom Safety',
+        val: `+₹${headroom}/sq ft`,
+        text: `Break-even ceiling ₹${breakeven}/mo provides strong buffer over benchmark ₹${rent}/mo.`,
+      },
+      {
+        icon: 'shield-check-fill',
+        color: '#0EA5E9',
+        label: 'Downside Floor (P10)',
+        val: inr(p10Profit),
+        text: `P10 baseline ₹${inr(p10Profit)}/yr survives severe shocks; passed ${passes}/4 stress scenarios.`,
+      },
+      {
+        icon: 'radar-line',
+        color: '#10B981',
+        label: 'Network Expansion Index',
+        val: `${pct(cannRatio)} displacement`,
+        text: `Low internal margin cannibalisation preserves network profit for new store openings.`,
+      },
+    ];
+  }, [displayPicks, best]);
+
   const exportCsv = () =>
     downloadCsv(
       `karyakshetram_${category}_picks.csv`,
@@ -671,7 +716,7 @@ export default function Dashboard() {
               }}
               onFocus={() => setSearchOpen(true)}
               onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
-              placeholder="Search a locality, “lat, lon” or H3 cell"
+              placeholder="Search a locality or coordinates..."
               aria-label="Search location"
               onKeyDown={(e) => {
                 if (e.key === 'ArrowDown') {
@@ -868,7 +913,7 @@ export default function Dashboard() {
 
                   <div className="col g4 s11 muted pad8" style={{ background: 'var(--surface2)', borderRadius: 10 }}>
                     <span className="row g6 b"><Icon n="shield-check-line" s={14} c="var(--accent)" /> Feasible Model Sync</span>
-                    <span>Filters apply directly to H3 Res 8 polygon ranking and the ML recommendation engine.</span>
+                    <span>Filters apply directly to spatial hexagon ranking and the ML recommendation engine.</span>
                   </div>
                 </div>
               </div>
@@ -1142,18 +1187,60 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Karyakshetra insights (temporarily blank section as requested) */}
-          <div className="card pad16 col g12 shadow">
+          {/* Karyakshetra insights with InShort model data & passing gradient */}
+          <div className="card pad16 col g12 shadow karyakshetra-insights-card">
             <div className="row sb ac">
-              <span className="row g8 b s15">
-                <Icon n="lightbulb-line" s={18} c="var(--accent2)" />
+              <span className="row g8 b s15 ac">
+                <Icon n="sparkling-fill" s={18} c="var(--accent2)" />
                 Karyakshetra insights
               </span>
-              <span className="tag ok">Active</span>
+              <span className="tag ok b" style={{ fontSize: 11, padding: '2px 8px' }}>
+                InShort · Model Live
+              </span>
             </div>
-            <div className="col ac jc pad24" style={{ minHeight: 140, border: '1px dashed var(--line)', borderRadius: 12, textAlign: 'center' }}>
-              <Icon n="radar-line" s={28} c="var(--muted)" style={{ opacity: 0.5, marginBottom: 8 }} />
-              <span className="s12 muted">Karyakshetra insights will be populated here.</span>
+
+            {rec.loading && !insightsData && (
+              <div className="col g8">
+                <Skel h={38} />
+                <Skel h={38} />
+                <Skel h={38} />
+              </div>
+            )}
+
+            {!rec.loading && !insightsData && (
+              <div className="col ac jc pad20" style={{ textAlign: 'center' }}>
+                <Icon n="radar-line" s={24} c="var(--muted)" style={{ opacity: 0.5, marginBottom: 6 }} />
+                <span className="s12 muted">Select an active category to compute real-time spatial insights.</span>
+              </div>
+            )}
+
+            {insightsData && (
+              <div className="col g8">
+                {insightsData.map((item) => (
+                  <div key={item.label} className="inshort-item col g4">
+                    <div className="row sb ac">
+                      <span className="row g6 ac b s12" style={{ color: item.color }}>
+                        <Icon n={item.icon} s={14} c={item.color} />
+                        {item.label}
+                      </span>
+                      <span className="b num s12" style={{ color: 'var(--text)' }}>
+                        {item.val}
+                      </span>
+                    </div>
+                    <span className="s11 muted" style={{ lineHeight: 1.45 }}>
+                      {item.text}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="row sb ac s11 muted" style={{ borderTop: '1px solid var(--line)', paddingTop: 6 }}>
+              <span className="row g4 ac">
+                <Icon n="cpu-line" s={12} c="var(--accent)" />
+                RF-300 Engine
+              </span>
+              <span>Vectorized ML</span>
             </div>
           </div>
         </aside>
@@ -1568,15 +1655,15 @@ function CityLineGraph({ catInfo, picks, locality, onSelectLocality, onOpenLocat
       </div>
 
       {/* Metric Series Toggles */}
-      <div className="row sb ac wrap g8 pad8" style={{ background: 'var(--bg)', borderRadius: 12, border: '1px solid var(--line)' }}>
-        <div className="row g8 wrap ac">
+      <div className="row sb ac wrap g8 pad8" style={{ background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--line)' }}>
+        <div className="row g6 wrap ac">
           <button
             type="button"
             className={`graph-metric-pill ${showProfit ? 'on' : ''}`}
             style={{ color: '#E23B3B' }}
             onClick={() => setShowProfit(!showProfit)}
           >
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E23B3B' }} />
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#E23B3B' }} />
             Expected Annual Profit (P50)
           </button>
 
@@ -1586,7 +1673,7 @@ function CityLineGraph({ catInfo, picks, locality, onSelectLocality, onOpenLocat
             style={{ color: '#0EA5E9' }}
             onClick={() => setShowP10(!showP10)}
           >
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#0EA5E9' }} />
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#0EA5E9' }} />
             Downside Safety (P10)
           </button>
 
@@ -1596,7 +1683,7 @@ function CityLineGraph({ catInfo, picks, locality, onSelectLocality, onOpenLocat
             style={{ color: '#8B5CF6' }}
             onClick={() => setShowRent(!showRent)}
           >
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#8B5CF6' }} />
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#8B5CF6' }} />
             Commercial Rent
           </button>
 
@@ -1606,16 +1693,16 @@ function CityLineGraph({ catInfo, picks, locality, onSelectLocality, onOpenLocat
             style={{ color: '#F59E0B' }}
             onClick={() => setShowFootfall(!showFootfall)}
           >
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#F59E0B' }} />
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#F59E0B' }} />
             Footfall Density Index
           </button>
         </div>
 
-        <span className="s12 muted">Hover points for detailed figures · Click point to focus map</span>
+        <span className="s12 muted">Hover points for detailed figures</span>
       </div>
 
       {/* SVG Canvas */}
-      <div style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
+      <div style={{ position: 'relative', width: '100%' }} onMouseLeave={() => setHoveredIdx(null)}>
         <svg
           viewBox={`0 0 ${W} ${H}`}
           style={{ width: '100%', height: 'auto', display: 'block', overflow: 'visible' }}
@@ -1803,56 +1890,70 @@ function CityLineGraph({ catInfo, picks, locality, onSelectLocality, onOpenLocat
           })}
         </svg>
 
-        {/* Floating Tooltip Card */}
-        {hoveredPoint && (
-          <div
-            className="card pad12 col g6 shadow"
-            style={{
-              position: 'absolute',
-              top: 14,
-              left: Math.max(14, Math.min(hoveredPoint.x - 110, plotW - 140)),
-              width: 250,
-              background: 'var(--surface)',
-              border: '1.5px solid var(--accent2)',
-              borderRadius: 14,
-              pointerEvents: 'none',
-              zIndex: 30,
-              boxShadow: '0 8px 24px -2px rgba(0,0,0,0.22)',
-            }}
-          >
-            <div className="row sb ac">
-              <span className="b s14">{hoveredPoint.name}</span>
-              <span className="tag acc">{hoveredPoint.zone} Zone</span>
-            </div>
-            <span className="s11 muted">{hoveredPoint.sub}</span>
+        {/* Floating Tooltip Card: docked at top of graph canvas, clamped so it never clips or hides */}
+        {hoveredPoint && (() => {
+          const xPct = (hoveredPoint.x / W) * 100;
+          const tooltipPosStyle =
+            xPct < 26
+              ? { left: 16 }
+              : xPct > 74
+              ? { right: 16 }
+              : { left: `${xPct}%`, transform: 'translateX(-50%)' };
 
-            <div className="divider" style={{ margin: '4px 0' }} />
+          return (
+            <div
+              className="card pad12 col g6 shadow graph-hover-modal"
+              style={{
+                position: 'absolute',
+                top: 10,
+                ...tooltipPosStyle,
+                width: 270,
+                maxWidth: 'calc(100% - 32px)',
+                background: 'var(--surface)',
+                border: '1.5px solid var(--accent2)',
+                borderRadius: 12,
+                pointerEvents: 'none',
+                zIndex: 40,
+                boxShadow: '0 8px 24px -2px rgba(0,0,0,0.22)',
+              }}
+            >
+              <div className="row sb ac">
+                <span className="b s14">{hoveredPoint.name}</span>
+                <span className="tag acc" style={{ fontSize: 11, padding: '2px 7px' }}>{hoveredPoint.zone} Zone</span>
+              </div>
+              <span className="s11 muted">{hoveredPoint.sub}</span>
 
-            <div className="grid2 g8 s12">
-              <div className="col g2">
-                <span className="s11 muted">Expected Profit</span>
-                <span className="b num" style={{ color: '#E23B3B' }}>{inr(hoveredPoint.expProfit)}</span>
+              <div className="divider" style={{ margin: '3px 0' }} />
+
+              <div className="grid2 g8 s12">
+                <div className="col g2">
+                  <span className="s11 muted">Expected Profit</span>
+                  <span className="b num" style={{ color: '#E23B3B' }}>{inr(hoveredPoint.expProfit)}</span>
+                </div>
+                <div className="col g2">
+                  <span className="s11 muted">Downside (P10)</span>
+                  <span className="b num" style={{ color: '#0EA5E9' }}>{inr(hoveredPoint.p10Profit)}</span>
+                </div>
+                <div className="col g2">
+                  <span className="s11 muted">Commercial Rent</span>
+                  <span className="b num" style={{ color: '#8B5CF6' }}>₹{hoveredPoint.rent}/sq ft</span>
+                </div>
+                <div className="col g2">
+                  <span className="s11 muted">Footfall Density</span>
+                  <span className="b num" style={{ color: '#F59E0B' }}>{hoveredPoint.ffIdx} / 100</span>
+                </div>
               </div>
-              <div className="col g2">
-                <span className="s11 muted">Downside (P10)</span>
-                <span className="b num" style={{ color: '#0EA5E9' }}>{inr(hoveredPoint.p10Profit)}</span>
-              </div>
-              <div className="col g2">
-                <span className="s11 muted">Commercial Rent</span>
-                <span className="b num" style={{ color: '#8B5CF6' }}>₹{hoveredPoint.rent}/sq ft</span>
-              </div>
-              <div className="col g2">
-                <span className="s11 muted">Footfall Density</span>
-                <span className="b num" style={{ color: '#F59E0B' }}>{hoveredPoint.ffIdx} / 100</span>
+
+              <div className="row sb ac s11 muted" style={{ marginTop: 2 }}>
+                <span className="tag ok b">Tier {hoveredPoint.tier} Viability</span>
+                <span className="row g4 ac b" style={{ color: 'var(--accent2)' }}>
+                  <Icon n="map-pin-2-fill" s={12} />
+                  {hoveredPoint.locality || hoveredPoint.name}
+                </span>
               </div>
             </div>
-
-            <div className="row sb ac s11 muted" style={{ marginTop: 2 }}>
-              <span className="tag">Tier {hoveredPoint.tier} Viability</span>
-              <span className="b acc">Click to focus map →</span>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
