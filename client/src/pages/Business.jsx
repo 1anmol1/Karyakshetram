@@ -380,7 +380,9 @@ export default function Business() {
               <span className="tag acc" style={{ fontSize: 13 }}>
                 <Icon n={cat?.icon || 'store-line'} s={14} /> {cat?.name || 'Retail'}
               </span>
-              <span className="tag">{p.businessType || 'Retail Outlet'}</span>
+              {p.businessType && p.businessType.toLowerCase() !== 'fmcg' && (
+                <span className="tag">{p.businessType}</span>
+              )}
             </div>
             <p className="s13 muted" style={{ maxWidth: 640, margin: 0 }}>
               {p.businessActivity || 'Store locations, catchment revenue forecasting, and spatial network constraints.'}

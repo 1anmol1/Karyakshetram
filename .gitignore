@@ -7,3 +7,8 @@ build/
 *.log
 .DS_Store
 Thumbs.db
+backend/venv/
+venv/
+__pycache__/
+*.pyc
+
