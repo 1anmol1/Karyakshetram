@@ -2,7 +2,7 @@ import { config } from '../config/index.js';
 import { inr, pct, round } from '../utils/index.js';
 
 const GEMINI_API_KEY = config.geminiApiKey || process.env.GEMINI_API_KEY || '';
-const MODELS = ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-flash-latest'];
+const MODELS = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'];
 
 /**
  * Call Google Gemini API directly with resilience across models

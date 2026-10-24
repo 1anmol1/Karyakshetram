@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useApp, useAuth, useToast } from '../lib/state.jsx';
-import { inr, pct, downloadCsv } from '../lib/format.js';
+import { inr, pct, downloadCsv, n } from '../lib/format.js';
 import { Header, Footer, SystemBanners } from '../components/Layout.jsx';
 import { Icon, Collapse, Tier, Banner, Skel, ErrorBox, EmptyState, Seg, Modal } from '../components/ui.jsx';
 import { PickCard, ShopCard } from '../components/Cards.jsx';
@@ -261,7 +261,6 @@ export default function Dashboard() {
   const [grid, setGrid] = useState(user.profile?.grid || 'res8');
   const [retry, setRetry] = useState(0);
   const [myStores, setMyStores] = useState([]);
-  const [showAllTrend, setShowAllTrend] = useState(false);
   const [showAllPicks, setShowAllPicks] = useState(false);
   const [addBizOpen, setAddBizOpen] = useState(false);
   const [bizForm, setBizForm] = useState({
@@ -893,8 +892,8 @@ export default function Dashboard() {
           >
             {!trend && <div className="col g10">{[1, 2, 3, 4, 5].map((i) => <Skel key={i} h={38} />)}</div>}
             {trend?.length === 0 && <div className="s13 muted pad12">No search activity yet this week.</div>}
-            <div className="col" style={{ gap: 6, maxHeight: showAllTrend ? 360 : 'none', overflowY: showAllTrend ? 'auto' : 'visible', paddingRight: showAllTrend ? 4 : 0 }}>
-              {(showAllTrend ? trend : trend?.slice(0, 5))?.map((r, i) => (
+            <div className="col" style={{ gap: 6, maxHeight: 380, overflowY: 'auto', paddingRight: 4 }}>
+              {trend?.slice(0, 6)?.map((r, i) => (
                 <button
                   key={r.locality}
                   className="row g10 ac trend-item-row"
@@ -915,17 +914,6 @@ export default function Dashboard() {
                 </button>
               ))}
             </div>
-            {trend && trend.length > 5 && (
-              <button
-                type="button"
-                className="btn out sm"
-                style={{ width: '100%', marginTop: 8 }}
-                onClick={() => setShowAllTrend(!showAllTrend)}
-              >
-                {showAllTrend ? 'Show less (5 areas)' : `Show more (${trend.length - 5} more areas)`}
-                <Icon n={showAllTrend ? 'arrow-up-s-line' : 'arrow-down-s-line'} s={15} />
-              </button>
-            )}
             <div className="s11 muted" style={{ marginTop: 8 }}>Ranked by searches this week and population growth</div>
           </Collapse>
           <RecentSaved />
