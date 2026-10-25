@@ -676,8 +676,17 @@ r.post('/cannibalisation', requireAuth, validate(z.object({
     for (const [i, pc] of req.body.pickCells.entries()) {
       if (!state.byId.has(pc)) continue;
       const s = await siteFor(req, pc, category);
-      const takenRs = s.cann?.takenRs || 0;
-      picks.push({ label: req.body.pickLabels?.[i] || labels[i] || 'Pick', cell: pc, locality: s.site.locality, profitExp: s.site.profit.exp, takenRs, lostMargin: takenRs * s.site.margin, netNetworkProfit: s.cann?.netNetworkProfit ?? s.site.profit.exp });
+      const cn = await ml.cannibalisation({ site: s.site, own: storesToUse, category });
+      const takenRs = cn.takenRs || 0;
+      picks.push({
+        label: req.body.pickLabels?.[i] || labels[i] || `Pick ${i + 1}`,
+        cell: pc,
+        locality: s.site.locality,
+        profitExp: s.site.profit.exp,
+        takenRs,
+        lostMargin: cn.lostMargin || (takenRs * s.site.margin),
+        netNetworkProfit: cn.netNetworkProfit ?? (s.site.profit.exp - (cn.lostMargin || 0)),
+      });
     }
   } else if (req.body.withPicks) {
     const g = req.user.profile.goals || {};

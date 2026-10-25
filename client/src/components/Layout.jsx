@@ -38,18 +38,37 @@ function CategoryPicker() {
 }
 
 function LocalityPicker() {
-  const { locality, setLocality } = useApp();
+  const { locality, setLocality, category, setPicks } = useApp();
   const [open, setOpen] = useState(false), [list, setList] = useState([]), [q, setQ] = useState('');
   const ref = useRef(null); useOutside(ref, () => setOpen(false));
+  const nav = useNavigate();
+  const loc = useLocation();
   useEffect(() => { if (open && !list.length) api('/localities').then((r) => setList(r.localities)).catch(() => {}); }, [open, list.length]);
   const f = list.filter((l) => l.name.toLowerCase().includes(q.toLowerCase()));
+
+  const handleSelectLocality = async (l) => {
+    setLocality(l);
+    setOpen(false);
+    if (loc.pathname.startsWith('/location')) {
+      try {
+        const body = { category: category || 'all', k: 8 };
+        if (l?.lat && l?.lon) { body.lat = l.lat; body.lon = l.lon; }
+        const r = await api('/recommend', { method: 'POST', body });
+        if (r.picks?.length > 0) {
+          setPicks(r.picks);
+          nav(`/location/${r.picks[0].cell}?h=1`);
+        }
+      } catch {}
+    }
+  };
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button className="loc" onClick={() => setOpen(!open)} aria-label="Change location"><Icon n="map-pin-line" s={16} c="var(--accent2)" /><span className="hide-sm">Pune · {locality?.name || 'All city'}</span></button>
       {open && <div className="popover" style={{ right: 0, width: 280 }}>
         <div className="input" style={{ height: 38, marginBottom: 6 }}><Icon n="search-line" s={16} c="var(--muted)" /><input autoFocus placeholder="Search a locality" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-        <button onClick={() => { setLocality(null); setOpen(false); }} className={!locality ? 'on' : ''}><Icon n="map-2-line" s={16} />Whole city (Pune &amp; PCMC)</button>
-        {f.map((l) => <button key={l.name} className={locality?.name === l.name ? 'on' : ''} onClick={() => { setLocality(l); setOpen(false); }}><Icon n="map-pin-line" s={16} c="var(--muted)" />{l.name}</button>)}
+        <button onClick={() => handleSelectLocality(null)} className={!locality ? 'on' : ''}><Icon n="map-2-line" s={16} />Whole city (Pune &amp; PCMC)</button>
+        {f.map((l) => <button key={l.name} className={locality?.name === l.name ? 'on' : ''} onClick={() => handleSelectLocality(l)}><Icon n="map-pin-line" s={16} c="var(--muted)" />{l.name}</button>)}
       </div>}
     </div>
   );

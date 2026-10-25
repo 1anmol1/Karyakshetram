@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, fieldErrors } from '../lib/api.js';
 import { useApp, useAuth, useToast, useApi } from '../lib/state.jsx';
@@ -39,7 +39,7 @@ export default function Location() {
   const { cellId } = useParams();
   const [searchParams] = useSearchParams();
   const hParam = searchParams.get('h');
-  const { category, catInfo, picks, compare, setCompare } = useApp();
+  const { category, catInfo, picks, setPicks, locality, setLocality, compare, setCompare } = useApp();
   const { user } = useAuth();
   const toast = useToast();
   const nav = useNavigate();
@@ -53,6 +53,49 @@ export default function Location() {
   const [savedId, setSavedId] = useState(null);
   const [modal, setModal] = useState(null);
   const [rent, setRent] = useState(null);
+
+  // When locality changes from the header picker or anywhere, update immediately to H1 in that location
+  const prevLocalityRef = useRef(locality?.name);
+  useEffect(() => {
+    if (prevLocalityRef.current !== undefined && prevLocalityRef.current !== locality?.name) {
+      prevLocalityRef.current = locality?.name;
+      const body = { category: category || 'all', k: 8 };
+      if (locality?.lat && locality?.lon) {
+        body.lat = locality.lat;
+        body.lon = locality.lon;
+      }
+      api('/recommend', { method: 'POST', body })
+        .then((r) => {
+          if (r.picks?.length > 0) {
+            setPicks(r.picks);
+            nav(`/location/${r.picks[0].cell}?h=1`);
+          }
+        })
+        .catch(() => {});
+    } else {
+      prevLocalityRef.current = locality?.name;
+    }
+  }, [locality?.name, category, nav, setPicks]);
+
+  // Ensure picks are loaded for the sequence navigation
+  useEffect(() => {
+    const siteObj = d.data?.site;
+    if (!siteObj) return;
+    if (!picks || picks.length === 0) {
+      const body = { category: category || 'all', k: 8 };
+      if (siteObj.lat && siteObj.lon) {
+        body.lat = siteObj.lat;
+        body.lon = siteObj.lon;
+      } else if (locality?.lat && locality?.lon) {
+        body.lat = locality.lat;
+        body.lon = locality.lon;
+      }
+      api('/recommend', { method: 'POST', body })
+        .then((r) => { if (r.picks?.length > 0) setPicks(r.picks); })
+        .catch(() => {});
+    }
+  }, [d.data?.site?.cell, category, locality]);
+
   useEffect(() => {
     const cached = getCachedExplain(cellId, category);
     if (cached) {
@@ -72,13 +115,48 @@ export default function Location() {
 
   const site = d.data?.site;
   const pick = picks.find((p) => p.cell === cellId);
-  const hexIndex = (hParam && !isNaN(Number(hParam)))
-    ? Number(hParam)
-    : pick
-    ? picks.indexOf(pick) + 1
-    : site?.rank || (((parseInt((site?.cell || cellId).slice(-4), 16) || 7) % 15) + 1);
+  const pickIndexInList = picks.findIndex((p) => p.cell === cellId);
+
+  let currentIndex = 0;
+  if (pickIndexInList !== -1) {
+    currentIndex = pickIndexInList;
+  } else if (hParam && !isNaN(Number(hParam))) {
+    currentIndex = Math.max(0, Number(hParam) - 1);
+  } else if (site?.rank) {
+    currentIndex = Math.max(0, site.rank - 1);
+  } else {
+    currentIndex = 0;
+  }
+
+  const hexIndex = currentIndex + 1;
   const hexLabel = `H${hexIndex}`;
   const hexLocationName = `${hexLabel} in ${site?.locality || 'Location'}`;
+
+  // Forward and backward sequence states
+  const totalCount = picks.length > 0 ? picks.length : 8;
+  const isPrevDisabled = currentIndex <= 0;
+  const isNextDisabled = currentIndex >= totalCount - 1 || (picks.length > 0 && currentIndex >= picks.length - 1);
+
+  const handlePrevLocation = () => {
+    if (isPrevDisabled) return;
+    const prevIdx = currentIndex - 1;
+    if (picks[prevIdx]) {
+      nav(`/location/${picks[prevIdx].cell}?h=${prevIdx + 1}`);
+    } else {
+      nav(`/location/${cellId}?h=${prevIdx + 1}`);
+    }
+  };
+
+  const handleNextLocation = () => {
+    if (isNextDisabled) return;
+    const nextIdx = currentIndex + 1;
+    if (picks[nextIdx]) {
+      nav(`/location/${picks[nextIdx].cell}?h=${nextIdx + 1}`);
+    } else {
+      nav(`/location/${cellId}?h=${nextIdx + 1}`);
+    }
+  };
+
   const shareUrl = window.location.href;
   const share = async () => {
     try { if (navigator.share) await navigator.share({ title: `Karyakshetram · ${hexLocationName}`, url: shareUrl }); else { await navigator.clipboard.writeText(shareUrl); toast('Link copied', { icon: 'link' }); } }
@@ -119,8 +197,74 @@ export default function Location() {
       <SystemBanners />
       <div className="row as wrapx stack-md" style={{ padding: '20px clamp(16px, 2.5vw, 36px) 48px', gap: 28, width: '100%', boxSizing: 'border-box' }}>
         <div className="col g16 f1" style={{ minWidth: 0 }}>
+          {/* Forward and backward sequence navigation above map */}
+          <div className="row sb ac wrap g8" style={{ padding: '2px 0 4px' }}>
+            <div className="row g8 ac">
+              <button
+                type="button"
+                className="btn out sm"
+                disabled={isPrevDisabled}
+                onClick={handlePrevLocation}
+                style={{
+                  opacity: isPrevDisabled ? 0.45 : 1,
+                  cursor: isPrevDisabled ? 'not-allowed' : 'pointer',
+                  fontWeight: 600,
+                  gap: 6,
+                }}
+                aria-label="Previous location in sequence"
+              >
+                <Icon n="arrow-left-s-line" s={16} />
+                <span>Previous{currentIndex > 0 ? ` (H${currentIndex})` : ''}</span>
+              </button>
+              <button
+                type="button"
+                className="btn out sm"
+                disabled={isNextDisabled}
+                onClick={handleNextLocation}
+                style={{
+                  opacity: isNextDisabled ? 0.45 : 1,
+                  cursor: isNextDisabled ? 'not-allowed' : 'pointer',
+                  fontWeight: 600,
+                  gap: 6,
+                }}
+                aria-label="Next location in sequence"
+              >
+                <span>Next{currentIndex < totalCount - 1 ? ` (H${currentIndex + 2})` : ''}</span>
+                <Icon n="arrow-right-s-line" s={16} />
+              </button>
+            </div>
+            <div className="row g8 ac">
+              <span className="tag acc" style={{ fontWeight: 700, fontSize: 13, padding: '4px 10px', borderRadius: 999 }}>
+                {hexLabel} in {site?.locality || 'Location'}
+              </span>
+              {picks.length > 0 && (
+                <span className="s12 muted">
+                  Sequence {currentIndex + 1} of {picks.length}
+                </span>
+              )}
+            </div>
+          </div>
+
           <div style={{ height: 420, position: 'relative', borderRadius: 16, overflow: 'hidden' }}>
-            <HexMap features={hex.data?.features.filter((f) => { const [lo, la] = f.geometry.coordinates[0][0]; return Math.abs(la - site.lat) < 0.04 && Math.abs(lo - site.lon) < 0.045; })} selected={cellId} picks={[{ lat: site.lat, lon: site.lon, n: hexIndex }]} rings={[{ lat: site.lat, lon: site.lon, km: site.catchment.km }]} comps={comps} center={[site.lat, site.lon]} zoom={14} legend={false} controls={true} />
+            <HexMap
+              features={hex.data?.features.filter((f) => {
+                const [lo, la] = f.geometry.coordinates[0][0];
+                return Math.abs(la - site.lat) < 0.04 && Math.abs(lo - site.lon) < 0.045;
+              })}
+              selected={cellId}
+              picks={[{ lat: site.lat, lon: site.lon, n: hexIndex }]}
+              rings={[{ lat: site.lat, lon: site.lon, km: site.catchment.km }]}
+              comps={comps}
+              center={[site.lat, site.lon]}
+              zoom={14}
+              legend={false}
+              controls={true}
+              onCellClick={(f) => {
+                if (f.properties?.id) {
+                  nav(`/location/${f.properties.id}?h=${f.properties.hIndex || 1}`);
+                }
+              }}
+            />
             <span className="tag maptag" style={{ left: 14, top: 14, background: 'var(--bg)', height: 28 }}><Icon n="map-pin-2-line" s={14} />{site.catchment.km} km {catInfo?.name.toLowerCase() || ''} catchment · {comps.length} competitors</span>
           </div>
           <h1 className="h2">{hexLocationName}{pick?.label && pick.label !== 'Location' ? <span className="muted s16" style={{ fontWeight: 400 }}> · {pick.label}</span> : null}</h1>
@@ -390,9 +534,18 @@ function VisitModal({ open, onClose, cellId, category, onSaved }) {
     catch (er) { setErrs(fieldErrors(er)); }
   };
   return <Modal open={open} onClose={onClose} title="Site-visit observations">
-    <div className="col g12"><div className="grid2"><Field label="Quoted rent" value={v.rent} onChange={(x) => setV({ ...v, rent: x })} suffix="₹ / sq ft / mo" error={errs.quotedRent} /><Field label="Footfall count" value={v.footfall} onChange={(x) => setV({ ...v, footfall: x })} suffix="per hour" error={errs.footfall} /></div>
-      <div className="field"><label>Notes</label><textarea className="ta" value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} placeholder="Frontage, parking, visibility…" /></div>{errs.notes && <span className="help err">{errs.notes}</span>}
-      <button className="btn ink" style={{ alignSelf: 'flex-start' }} onClick={send}>Save observation</button></div>
+    <div className="col g14" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+      <div className="grid2" style={{ gap: 14, width: '100%' }}>
+        <Field label="Quoted rent" value={v.rent} onChange={(x) => setV({ ...v, rent: x })} suffix="₹/sq ft/mo" placeholder="e.g. 150" error={errs.quotedRent} />
+        <Field label="Footfall count" value={v.footfall} onChange={(x) => setV({ ...v, footfall: x })} suffix="/ hr" placeholder="e.g. 120" error={errs.footfall} />
+      </div>
+      <div className="field" style={{ width: '100%' }}>
+        <label htmlFor="visit-notes">Notes</label>
+        <textarea id="visit-notes" className="ta" value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} placeholder="Frontage, parking, visibility, foot traffic…" style={{ width: '100%', boxSizing: 'border-box' }} />
+      </div>
+      {errs.notes && <span className="help err">{errs.notes}</span>}
+      <button className="btn ink" style={{ alignSelf: 'flex-start' }} onClick={send}>Save observation</button>
+    </div>
   </Modal>;
 }
 

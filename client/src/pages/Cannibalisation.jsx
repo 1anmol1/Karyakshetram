@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api.js';
-import { useApp, useToast } from '../lib/state.jsx';
+import { useApp, useToast, useApi } from '../lib/state.jsx';
 import { inr, km, pct } from '../lib/format.js';
 import { Header, Footer, SystemBanners } from '../components/Layout.jsx';
 import { Icon, Kv, Sim, Banner, EmptyState, Skel, Field, Tier, ErrorBox } from '../components/ui.jsx';
@@ -19,11 +19,13 @@ const POPULAR_PUNE_LOCATIONS = [
 
 export default function Cannibalisation() {
   const { cellId: param } = useParams();
-  const { category, catInfo, picks, categories } = useApp();
+  const { category, catInfo, picks, categories, locality } = useApp();
   const nav = useNavigate();
   const toast = useToast();
   const [saved, setSaved] = useState([]);
   const [myStores, setMyStores] = useState([]);
+  const candApi = useApi(`/compare/candidates?category=${category}`, [category]);
+  const hex = useApi(`/cells?category=${category}`, [category]);
 
   useEffect(() => {
     api('/saved').then((r) => setSaved(r.saved || [])).catch(() => {});
@@ -32,23 +34,78 @@ export default function Cannibalisation() {
 
   const options = useMemo(() => {
     const list = [];
-    (picks || []).filter((p) => !p.empty).forEach((p) => {
-      list.push({ cell: p.cell, name: `${p.label} · ${p.locality}` });
+    const candidates = candApi.data?.candidates || [];
+    const locName = locality?.name?.toLowerCase();
+
+    // 1. Current locality candidates first
+    const inLoc = candidates.filter((c) => locName && c.locality?.toLowerCase() === locName);
+    inLoc.forEach((c) => {
+      list.push({
+        cell: c.cell,
+        name: `H${c.rank} in ${c.locality} · Exp profit ${inr(c.exp)}/yr`,
+        rank: c.rank,
+        locality: c.locality,
+      });
     });
+
+    // 2. Recommendations from state
+    (picks || []).filter((p) => !p.empty).forEach((p, idx) => {
+      if (!list.some((o) => o.cell === p.cell)) {
+        list.push({
+          cell: p.cell,
+          name: `H${idx + 1} in ${p.locality || 'Location'} · ${p.label}`,
+          rank: idx + 1,
+          locality: p.locality,
+        });
+      }
+    });
+
+    // 3. Saved locations
     (saved || []).forEach((s) => {
       if (!list.some((o) => o.cell === s.cell)) {
-        list.push({ cell: s.cell, name: `Saved · ${s.name || s.locality || 'Site'}` });
+        list.push({
+          cell: s.cell,
+          name: `Saved · ${s.name || s.locality || 'Site'}`,
+          locality: s.locality,
+        });
       }
     });
-    POPULAR_PUNE_LOCATIONS.forEach((loc) => {
-      if (!list.some((o) => o.cell === loc.cell)) {
-        list.push(loc);
-      }
-    });
-    return list;
-  }, [picks, saved]);
 
-  const cellId = param || options[0]?.cell;
+    // 4. Other Pune candidates
+    const otherLoc = candidates.filter((c) => !locName || c.locality?.toLowerCase() !== locName);
+    otherLoc.slice(0, 20).forEach((c) => {
+      if (!list.some((o) => o.cell === c.cell)) {
+        list.push({
+          cell: c.cell,
+          name: `H${c.rank} in ${c.locality} · Exp profit ${inr(c.exp)}/yr`,
+          rank: c.rank,
+          locality: c.locality,
+        });
+      }
+    });
+
+    if (!list.length) {
+      POPULAR_PUNE_LOCATIONS.forEach((loc) => list.push(loc));
+    }
+    return list;
+  }, [candApi.data?.candidates, locality?.name, picks, saved]);
+
+  const cellId = param || options[0]?.cell || '8860884231fffff';
+
+  // Automatically update candidate to top site in new locality when locality changes
+  const prevLocalityRef = useRef(locality?.name);
+  useEffect(() => {
+    if (prevLocalityRef.current !== undefined && prevLocalityRef.current !== locality?.name && locality?.name) {
+      prevLocalityRef.current = locality.name;
+      const inNewLoc = (candApi.data?.candidates || []).filter((c) => c.locality?.toLowerCase() === locality.name.toLowerCase());
+      if (inNewLoc.length > 0) {
+        nav(`/cannibalisation/${inNewLoc[0].cell}`);
+      }
+    } else {
+      prevLocalityRef.current = locality?.name;
+    }
+  }, [locality?.name, candApi.data?.candidates, nav]);
+
   const [d, setD] = useState({ loading: true });
   const [threshold, setThreshold] = useState(5);
 
@@ -56,6 +113,9 @@ export default function Cannibalisation() {
     if (!cellId) { setD({ loading: false, none: true }); return; }
     setD({ loading: true });
     const reqCat = category === 'all' ? 'grocery' : category;
+    const topPickCells = options.slice(0, 5).map((o) => o.cell);
+    const topPickLabels = options.slice(0, 5).map((o) => o.name.split('·')[0].trim());
+
     api('/cannibalisation', {
       method: 'POST',
       body: {
@@ -63,8 +123,8 @@ export default function Cannibalisation() {
         category: reqCat,
         crossCategory: true,
         withPicks: true,
-        pickCells: picks.filter((p) => !p.empty).map((p) => p.cell),
-        pickLabels: picks.filter((p) => !p.empty).map((p) => p.label),
+        pickCells: topPickCells,
+        pickLabels: topPickLabels,
       },
       timeout: 60000,
     })
@@ -103,35 +163,54 @@ export default function Cannibalisation() {
         </div>
 
         {/* Candidate Selector Bar */}
-        <div className="card pad16 row g16 wrap ac">
-          <div style={{ width: 320 }}>
-            <Field
-              label="Candidate expansion site"
-              icon="map-pin-2-fill"
-              value={cellId || ''}
-              onChange={(v) => nav(`/cannibalisation/${v}`)}
-              options={options.map((o) => ({ value: o.cell, label: o.name }))}
-            />
-          </div>
-          <div style={{ width: 170 }}>
-            <Field label="Catchment Radius" value={`${catInfo?.catchmentKm ?? 2} km`} disabled />
-          </div>
-          <div style={{ width: 180 }}>
-            <Field
-              label="Loss Alert Threshold"
-              value={threshold}
-              onChange={(v) => setThreshold(Math.max(0, Math.min(100, Number(v) || 0)))}
-              suffix="% of revenue"
-              type="number"
-            />
-          </div>
-          <div className="col g4 f1">
-            <span className="s12 b">Huff Spatial Interaction Model</span>
-            <div className="row g8 s13 ac" style={{ minHeight: 40 }}>
-              <span>α {res?.model?.alpha ?? '1.0'} (attractiveness) · λ {res?.model?.lambda ?? '1.85'} (distance friction)</span>
-              <Sim />
+        <div className="card pad16 col g12">
+          <div className="row g16 wrap ac">
+            <div style={{ width: 340 }}>
+              <Field
+                label="Candidate expansion site"
+                icon="map-pin-2-fill"
+                value={cellId || ''}
+                onChange={(v) => nav(`/cannibalisation/${v}`)}
+                options={options.map((o) => ({ value: o.cell, label: o.name }))}
+              />
+            </div>
+            <div style={{ width: 170 }}>
+              <Field label="Catchment Radius" value={`${catInfo?.catchmentKm ?? 2} km`} disabled />
+            </div>
+            <div style={{ width: 180 }}>
+              <Field
+                label="Loss Alert Threshold"
+                value={threshold}
+                onChange={(v) => setThreshold(Math.max(0, Math.min(100, Number(v) || 0)))}
+                suffix="% of revenue"
+                type="number"
+              />
+            </div>
+            <div className="col g4 f1">
+              <span className="s12 b">Huff Spatial Interaction Model</span>
+              <div className="row g8 s13 ac" style={{ minHeight: 40 }}>
+                <span>α {res?.model?.alpha ?? '1.0'} (attractiveness) · λ {res?.model?.lambda ?? '1.85'} (friction)</span>
+                <Sim />
+              </div>
             </div>
           </div>
+
+          {options.slice(0, 6).length > 1 && (
+            <div className="row g8 wrap ac" style={{ borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+              <span className="s12 muted" style={{ marginRight: 4 }}>Select location:</span>
+              {options.slice(0, 6).map((o) => (
+                <button
+                  key={o.cell}
+                  type="button"
+                  className={`chip ${cellId === o.cell ? 'on' : ''}`}
+                  onClick={() => nav(`/cannibalisation/${o.cell}`)}
+                  style={{ fontSize: 12, padding: '4px 10px', fontWeight: cellId === o.cell ? 700 : 500 }}
+                >
+                  {o.name.split('·')[0].trim()}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {d.loading && (
@@ -257,8 +336,14 @@ export default function Cannibalisation() {
               {/* Map View */}
               <div style={{ flex: 1.35, height: 560, minWidth: 0, position: 'relative' }}>
                 <HexMap
-                  features={null}
-                  picks={[{ lat: site.lat, lon: site.lon, n: '+', label: 'New site' }]}
+                  features={hex.data?.features}
+                  selected={cellId}
+                  picks={[{
+                    lat: site.lat,
+                    lon: site.lon,
+                    n: site.rank ? `H${site.rank}` : '+',
+                    label: `Candidate: H${site.rank || 1} in ${site.locality}`,
+                  }]}
                   own={res.stores.map((s) => ({
                     lat: s.lat,
                     lon: s.lon,
@@ -270,8 +355,16 @@ export default function Cannibalisation() {
                       .filter((s) => s.lossPct > 0.001)
                       .map((s) => ({ lat: s.lat, lon: s.lon, km: catInfo?.catchmentKm || 2, kind: 'own' })),
                   ]}
+                  center={[site.lat, site.lon]}
+                  zoom={13}
                   fit="markers"
                   legend={false}
+                  controls={true}
+                  onCellClick={(f) => {
+                    if (f.properties?.id) {
+                      nav(`/cannibalisation/${f.properties.id}`);
+                    }
+                  }}
                 />
                 <div className="legend" style={{ left: 14, bottom: 28, width: 240 }}>
                   <div className="row g6 ac">
@@ -387,7 +480,7 @@ export default function Cannibalisation() {
                         const bestProfit = Math.max(...r.picks.map((p) => p.netNetworkProfit));
                         return r.picks.map((p) => (
                           <tr key={p.cell} className="click" onClick={() => nav(`/cannibalisation/${p.cell}`)}>
-                            <td className="b">{p.label} · {p.locality}</td>
+                            <td className="b">{p.label.includes(p.locality) ? p.label : `${p.label} · ${p.locality}`}</td>
                             <td className="num">{inr(p.profitExp)}</td>
                             <td className="num">{inr(p.takenRs)}</td>
                             <td className="num">{inr(p.lostMargin)}</td>

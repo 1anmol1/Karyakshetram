@@ -1276,7 +1276,7 @@ export default function Dashboard() {
       </div>
 
       {/* Recommended picks */}
-      <section className="wrapx col g12" style={{ paddingTop: 8 }}>
+      <section className="wrapx col g16" style={{ marginTop: 32, marginBottom: 36, paddingLeft: 'clamp(14px, 2.5vw, 28px)', paddingRight: 'clamp(14px, 2.5vw, 28px)' }}>
         <div className="row sb wrap g8 ac">
           <div className="row g8 ac">
             <h2 className="h3">Recommended picks</h2>
@@ -1326,7 +1326,7 @@ export default function Dashboard() {
       </section>
 
       {/* Shops around location */}
-      <section className="wrapx col g16" style={{ padding: '32px 28px 16px' }}>
+      <section className="wrapx col g16" style={{ marginTop: 24, marginBottom: 52, padding: '36px clamp(14px, 2.5vw, 28px) 32px' }}>
         <div className="row sb wrap g8">
           <div className="col">
             <h2 className="h3">Shops around {locality?.name || 'Pune & PCMC'}</h2>
