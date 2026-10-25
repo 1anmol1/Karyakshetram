@@ -78,8 +78,11 @@ export function ShopCard({ s, i, square, catInfo, saved, onSave }) {
   );
 }
 
-export function SimilarRow({ s, onOpen, children }) {
+export function SimilarRow({ s, i, onOpen, children }) {
   const expProfit = s.profit?.exp ?? s.profit?.p50 ?? 0;
+  const hLabel = s.hTag || (typeof i === 'number' ? `H${i + 1}` : null);
+  const rawLoc = (s.locality || 'Location').replace(/^H\d+\s+in\s+/i, '');
+  const title = hLabel ? `${hLabel} in ${rawLoc}` : rawLoc;
   return (
     <div className="row g12 as" style={{ cursor: 'pointer' }} onClick={onOpen} role="link" tabIndex={0}>
       <div style={{ width: 168, height: 96, borderRadius: 12, overflow: 'hidden', flex: 'none', position: 'relative' }}>
@@ -87,7 +90,7 @@ export function SimilarRow({ s, onOpen, children }) {
         <span className="tag" style={{ position: 'absolute', right: 6, bottom: 6, background: 'var(--bg)', zIndex: 600 }}>{km(s.distKm)}</span>
       </div>
       <div className="col g4 f1">
-        <span className="b s14" style={{ lineHeight: 1.3, color: 'var(--text)' }}>{s.locality}</span>
+        <span className="b s14" style={{ lineHeight: 1.3, color: 'var(--text)' }}>{title}</span>
         <span className="s12 muted">
           Exp profit <b className="num" style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{inr(expProfit)}</b>/yr · rent <b className="num" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>₹{s.rent}</b>/sq ft
         </span>

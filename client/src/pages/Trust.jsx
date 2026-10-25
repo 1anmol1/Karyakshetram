@@ -81,14 +81,14 @@ export default function Trust() {
           Live Production Engine: <b>RandomForestRegressor (300 trees) · {meta.data?.modelVersion || 'rf-300-v1.0.0'}</b> linked live via FastAPI ML microservice. Model evaluated via spatial block cross-validation (5 folds × 5 seeds) across all 30 commercial formats and 949 spatial hexagonal cells.
         </Banner>
 
-        {/* KPI Target Grid */}
-        <div className="grid4">
-          {(ev.data?.targets || Array.from({ length: 4 })).slice(0, 4).map((t, i) =>
+        {/* KPI Target Grid - dynamically computed for the active category */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+          {(ev.data?.targets || Array.from({ length: 6 })).map((t, i) =>
             t ? (
-              <div key={t.id} className="card pad16 col g6">
+              <div key={t.id} className="card pad16 col g6 shadow" style={{ background: 'var(--bg)' }}>
                 <span className="s12 muted">{t.metric}</span>
-                <span className="h2 num" style={{ color: 'var(--text)' }}>
-                  {m?.metrics?.[t.id] ?? (t.id === 'KPI-2' ? '0.64' : t.id === 'KPI-3' ? '0.78' : t.id === 'KPI-4' ? '68%' : '81.4%')}
+                <span className="h2 num" style={{ color: 'var(--text)', fontSize: 28 }}>
+                  {m?.metrics?.[t.id] ?? '…'}
                 </span>
                 <span className="tag ok b" style={{ alignSelf: 'flex-start' }}>
                   Target {t.target} · Pass
@@ -102,38 +102,41 @@ export default function Trust() {
 
         <div className="row as g16 stack-md">
           {/* Baselines comparison table */}
-          <div className="card pad20 col g12 f1">
+          <div className="card pad20 col g12 f1 shadow" style={{ minWidth: 0, background: 'var(--bg)' }}>
             <div className="h4">Model vs baselines · spatial block CV, 5 folds × 5 seeds</div>
-            <table className="t">
-              <thead>
-                <tr>
-                  <th>Model Architecture</th>
-                  <th>Spearman ρ</th>
-                  <th>NDCG@20</th>
-                  <th>Top-20 hit</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(m?.metrics?.baselines || [
-                  { name: 'RandomForest (300 trees)', spearman: 0.64, ndcg: 0.78, hit: '68%', shipped: true },
-                  { name: 'Huff + LightGBM', spearman: 0.58, ndcg: 0.72, hit: '61%', shipped: false },
-                  { name: 'Ridge', spearman: 0.44, ndcg: 0.61, hit: '52%', shipped: false },
-                  { name: 'Weighted sum', spearman: 0.38, ndcg: 0.54, hit: '45%', shipped: false },
-                  { name: 'Population only', spearman: 0.29, ndcg: 0.46, hit: '38%', shipped: false },
-                ]).map((b) => (
-                  <tr key={b.name}>
-                    <td className="b">{b.name}</td>
-                    <td className="num">{b.spearman ?? '—'}</td>
-                    <td className="num">{b.ndcg ?? '—'}</td>
-                    <td className="num">{b.hit ?? '—'}</td>
-                    <td>{b.shipped ? <span className="tag ok b">Shipped</span> : <span className="tag">Baseline</span>}</td>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <table className="t" style={{ minWidth: 520 }}>
+                <thead>
+                  <tr>
+                    <th>Model Architecture</th>
+                    <th>Spearman ρ</th>
+                    <th>NDCG@20</th>
+                    <th>Top-20 hit</th>
+                    <th>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {(m?.metrics?.baselines || []).map((b) => (
+                    <tr key={b.name}>
+                      <td className="b">{b.name}</td>
+                      <td className="num">{b.spearman ?? '—'}</td>
+                      <td className="num">{b.ndcg ?? '—'}</td>
+                      <td className="num">{b.hit ?? '—'}</td>
+                      <td>{b.shipped ? <span className="tag ok b">Shipped</span> : <span className="tag">Baseline</span>}</td>
+                    </tr>
+                  ))}
+                  {(!m?.metrics?.baselines || !m.metrics.baselines.length) && (
+                    <tr>
+                      <td colSpan={5} className="pad16 muted s13" style={{ textAlign: 'center' }}>
+                        Computing spatial cross-validation baselines for {activeCatInfo?.name}...
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
             <span className="s12 muted">
-              The model with the highest spatial-CV rank correlation (Spearman ρ) ships per category. The hybrid spatial Random Forest outperforms all empirical baselines.
+              The model with the highest spatial-CV rank correlation (Spearman ρ) ships per category. The hybrid spatial Random Forest outperforms all empirical baselines for {activeCatInfo?.name}.
             </span>
           </div>
 

@@ -9,22 +9,22 @@ import { Drivers } from './Location.jsx';
 import HexMap from '../components/HexMap.jsx';
 
 const PUNE_KEY_HUBS = [
-  { cell: '8860884203fffff', name: 'Baner High Street', sub: 'Commercial Corridor', tier: 'A', rent: 145 },
-  { cell: '886088508dfffff', name: 'Deccan Gymkhana', sub: 'Prime Central Pune', tier: 'A', rent: 174 },
-  { cell: '8860884249fffff', name: 'Wakad Datta Mandir', sub: 'High Footfall Junction', tier: 'A', rent: 138 },
-  { cell: '8860885081fffff', name: 'Kothrud Paud Road', sub: 'Dense Residential Hub', tier: 'B', rent: 125 },
-  { cell: '88608852cbfffff', name: 'Viman Nagar', sub: 'Phoenix Mall Corridor', tier: 'A', rent: 160 },
-  { cell: '8860884231fffff', name: 'Balewadi High Street', sub: 'Lifestyle & Dining Strip', tier: 'B', rent: 130 },
-  { cell: '8860885759fffff', name: 'Koregaon Park', sub: 'North Main Road', tier: 'A', rent: 185 },
-  { cell: '8860884639fffff', name: 'Hinjewadi Phase 1', sub: 'IT Park Express Hub', tier: 'B', rent: 110 },
-  { cell: '8860885111fffff', name: 'Yerawada', sub: 'Airport Road Commercial', tier: 'B', rent: 115 },
-  { cell: '8860885461fffff', name: 'Bavdhan', sub: 'Bavdhan Expressway Hub', tier: 'B', rent: 105 },
+  { cell: '8860884203fffff', locality: 'Baner', name: 'Baner High Street', sub: 'Commercial Corridor', tier: 'A', rent: 145 },
+  { cell: '886088508dfffff', locality: 'Deccan', name: 'Deccan Gymkhana', sub: 'Prime Central Pune', tier: 'A', rent: 174 },
+  { cell: '8860884249fffff', locality: 'Aundh', name: 'Aundh ITI Road', sub: 'High Footfall Junction', tier: 'A', rent: 138 },
+  { cell: '8860885081fffff', locality: 'Kothrud', name: 'Kothrud Paud Road', sub: 'Dense Residential Hub', tier: 'B', rent: 125 },
+  { cell: '886088510dfffff', locality: 'Viman Nagar', name: 'Viman Nagar', sub: 'Phoenix Mall Corridor', tier: 'A', rent: 160 },
+  { cell: '8860884231fffff', locality: 'Balewadi', name: 'Balewadi High Street', sub: 'Lifestyle & Dining Strip', tier: 'B', rent: 130 },
+  { cell: '8860885067fffff', locality: 'Koregaon Park', name: 'Koregaon Park', sub: 'North Main Road', tier: 'A', rent: 185 },
+  { cell: '88608840cbfffff', locality: 'Hinjewadi', name: 'Hinjewadi Phase 1', sub: 'IT Park Express Hub', tier: 'B', rent: 110 },
+  { cell: '8860885111fffff', locality: 'Yerawada', name: 'Yerawada', sub: 'Airport Road Commercial', tier: 'B', rent: 115 },
+  { cell: '8860885461fffff', locality: 'Bavdhan', name: 'Bavdhan', sub: 'Bavdhan Expressway Hub', tier: 'B', rent: 105 },
 ];
 
 export default function Compare() {
   const { compare, setCompare, picks, category } = useApp();
   const [saved, setSaved] = useState([]);
-  const [fetchedPicks, setFetchedPicks] = useState([]);
+  const [candidatesData, setCandidatesData] = useState(null);
   const [d, setD] = useState({ loading: false });
   const [hl, setHl] = useState(true);
   const [picker, setPicker] = useState(null);
@@ -36,6 +36,14 @@ export default function Compare() {
   const addCell = searchParams.get('add');
   const addName = searchParams.get('name') || 'Selected Location';
 
+  // Load verified candidate locations from scoring run
+  useEffect(() => {
+    const reqCat = category === 'all' ? 'grocery' : category;
+    api(`/compare/candidates?category=${reqCat}`)
+      .then((r) => setCandidatesData(r))
+      .catch(() => {});
+  }, [category]);
+
   // Load saved locations
   useEffect(() => {
     api('/saved')
@@ -43,34 +51,29 @@ export default function Compare() {
       .catch(() => {});
   }, [category]);
 
-  // If picks is empty (e.g. came directly to /compare), fetch candidates
-  useEffect(() => {
-    if (!picks || picks.length === 0) {
-      const reqCat = category === 'all' ? 'grocery' : category;
-      api('/recommend', { method: 'POST', body: { category: reqCat, k: 8 } })
-        .then((r) => {
-          if (r.picks && r.picks.length) {
-            setFetchedPicks(r.picks.filter((p) => !p.empty));
-          }
-        })
-        .catch(() => {});
-    }
-  }, [category, picks]);
-
-  // Combine all available candidate locations
+  // Combine only verified candidate locations that are part of current scoring run
   const allCandidates = useMemo(() => {
     const list = [];
     const seen = new Set();
+    const validSet = candidatesData?.validCells?.length ? new Set(candidatesData.validCells) : null;
 
-    // 1. Live recommended picks
-    const sourcePicks = (picks && picks.length ? picks : fetchedPicks).filter((p) => !p.empty);
+    // 1. Live recommended picks (from API candidates or useApp picks)
+    const sourcePicks = (candidatesData?.picks && candidatesData.picks.length)
+      ? candidatesData.picks
+      : (picks || []).filter((p) => !p.empty);
+
     sourcePicks.forEach((p, idx) => {
-      if (!seen.has(p.cell)) {
-        seen.add(p.cell);
+      const cellId = p.cell;
+      if (!seen.has(cellId) && (!validSet || validSet.has(cellId))) {
+        seen.add(cellId);
+        const hTag = p.hTag || `H${idx + 1}`;
+        const rawLoc = (p.locality || 'Location').replace(/^H\d+\s+in\s+/i, '');
         list.push({
-          cell: p.cell,
-          name: p.locality || `Location ${idx + 1}`,
-          sub: p.label || 'Recommended pick',
+          cell: cellId,
+          hTag,
+          name: `${hTag} in ${rawLoc}`,
+          locality: rawLoc,
+          sub: p.sub || p.label || 'Recommended pick',
           tier: p.tier || 'A',
           rent: p.rent,
           source: 'pick',
@@ -78,13 +81,19 @@ export default function Compare() {
       }
     });
 
-    // 2. Saved locations
+    // 2. Saved locations (strictly verified against current scoring run)
     saved.forEach((s) => {
-      if (!seen.has(s.cell)) {
-        seen.add(s.cell);
+      const cellId = s.cell;
+      // Do not include locations that are not part of the current scoring run
+      if (cellId && !seen.has(cellId) && (!validSet || validSet.has(cellId))) {
+        seen.add(cellId);
+        const hTag = `H${list.length + 1}`;
+        const rawLoc = (s.locality || s.name || 'Saved Site').replace(/^H\d+\s+in\s+/i, '');
         list.push({
-          cell: s.cell,
-          name: s.name || s.locality || 'Saved Location',
+          cell: cellId,
+          hTag,
+          name: `${hTag} in ${rawLoc}`,
+          locality: rawLoc,
           sub: 'Saved shortlist',
           tier: s.snapshot?.tier || 'A',
           rent: s.snapshot?.rent,
@@ -93,15 +102,21 @@ export default function Compare() {
       }
     });
 
-    // 3. Key Pune Commercial Hubs
-    PUNE_KEY_HUBS.forEach((h) => {
-      if (!seen.has(h.cell)) {
-        seen.add(h.cell);
+    // 3. Key Pune Commercial Hubs (strictly verified against current scoring run)
+    const hubs = candidatesData?.hubs?.length ? candidatesData.hubs : PUNE_KEY_HUBS;
+    hubs.forEach((h) => {
+      const cellId = h.cell;
+      if (cellId && !seen.has(cellId) && (!validSet || validSet.has(cellId))) {
+        seen.add(cellId);
+        const hTag = `H${list.length + 1}`;
+        const rawLoc = (h.locality || 'Pune Hub').replace(/^H\d+\s+in\s+/i, '');
         list.push({
-          cell: h.cell,
-          name: h.name,
-          sub: h.sub,
-          tier: h.tier,
+          cell: cellId,
+          hTag,
+          name: `${hTag} in ${rawLoc}`,
+          locality: rawLoc,
+          sub: h.sub || 'Commercial hub',
+          tier: h.tier || 'A',
           rent: h.rent,
           source: 'hub',
         });
@@ -109,7 +124,24 @@ export default function Compare() {
     });
 
     return list;
-  }, [picks, fetchedPicks, saved]);
+  }, [candidatesData, picks, saved]);
+
+  // Defensively sanitize compare array so any cell not in scoring run is replaced
+  useEffect(() => {
+    if (candidatesData?.validCells?.length && compare.length > 0 && allCandidates.length >= 2) {
+      const validSet = new Set(candidatesData.validCells);
+      const cleaned = compare.filter((c) => validSet.has(c));
+      if (cleaned.length !== compare.length) {
+        if (cleaned.length < 2) {
+          const c1 = allCandidates[0].cell;
+          const c2 = allCandidates.find((c) => c.cell !== c1)?.cell || allCandidates[1].cell;
+          setCompare([c1, c2]);
+        } else {
+          setCompare(cleaned);
+        }
+      }
+    }
+  }, [candidatesData, compare, allCandidates]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // If addCell is already in compare, notify and clean URL
   useEffect(() => {
@@ -172,6 +204,18 @@ export default function Compare() {
       .catch((e) => setD({ error: e }));
   }, [compare.join(','), category]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-repair compare array with valid candidate locations if any error occurs
+  useEffect(() => {
+    if (d.error && allCandidates.length >= 2) {
+      const valid = compare.filter((c) => allCandidates.some((cand) => cand.cell === c));
+      if (valid.length < 2) {
+        setCompare([allCandidates[0].cell, allCandidates[1].cell]);
+      } else if (valid.length !== compare.length) {
+        setCompare(valid);
+      }
+    }
+  }, [d.error, allCandidates]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const sites = d.data?.sites || [];
 
   const addSite = (cell) => {
@@ -215,10 +259,10 @@ export default function Compare() {
   const Row = ({ k, vals, raw, dir = 1 }) => {
     const b = best(raw || [], dir);
     return (
-      <div className="row" style={{ padding: '16px 0', borderTop: '1px solid var(--line)' }}>
-        <span className="s15" style={{ width: 260, flex: 'none' }}>{k}</span>
+      <div className="row compare-table-row" style={{ padding: '14px 0', borderTop: '1px solid var(--line)', minWidth: 580 }}>
+        <span className="s14" style={{ width: 240, flex: 'none', fontWeight: 600 }}>{k}</span>
         {vals.map((v, i) => (
-          <span key={i} className={`s15 f1 ${i === b ? 'b' : ''}`} style={i === b ? { color: 'var(--accent)' } : undefined}>
+          <span key={i} className={`s14 f1 ${i === b ? 'b' : ''}`} style={i === b ? { color: 'var(--accent)' } : undefined}>
             {v}
           </span>
         ))}
@@ -303,10 +347,11 @@ export default function Compare() {
               </span>
             </div>
             <div className="row g8 wrap">
-              {compare.map((cell) => {
+              {compare.map((cell, idx) => {
                 const found = allCandidates.find((c) => c.cell === cell);
                 const s = sites.find((x) => x.cell === cell);
-                const label = s?.locality || found?.name || 'Selected Site';
+                const rawLoc = s?.locality || found?.locality || (found?.name ? found.name.replace(/^H\d+\s+in\s+/i, '') : 'Selected Site');
+                const label = `H${idx + 1} in ${rawLoc}`;
                 return (
                   <span
                     key={cell}
@@ -456,7 +501,21 @@ export default function Compare() {
         {/* Side-by-Side Comparison Columns */}
         {compare.length >= 2 && (
           <>
-            <div className="row as stack-md" style={{ gap: 0 }}>
+            {/* Mobile highlight toggle */}
+            <div className="show-md col g8 pad12 panel" style={{ marginBottom: 12, width: '100%' }}>
+              <button
+                className="row sb ac"
+                style={{ width: '100%', background: 'transparent', border: 'none' }}
+                onClick={() => setHl(!hl)}
+                aria-pressed={hl}
+              >
+                <span className="b s14">Highlight key differences</span>
+                <span className={`tgl ${hl ? 'on' : ''}`} />
+              </button>
+              <span className="s12 muted">Best value in each row is highlighted when on.</span>
+            </div>
+
+            <div className="row as stack-md" style={{ gap: 0, width: '100%' }}>
               {/* Highlight toggle sidebar for desktop */}
               <div style={{ width: 260, paddingTop: 140, flex: 'none' }} className="col g12 hide-md">
                 <button
@@ -473,15 +532,17 @@ export default function Compare() {
                 </span>
               </div>
 
-              {/* 3 Location Columns */}
-              {[0, 1, 2].map((i) => {
-                const s = sites[i];
-                const cell = compare[i];
-                const found = allCandidates.find((c) => c.cell === cell);
-                const locName = s?.locality || found?.name || 'Loading…';
+              {/* 3 Location Columns in scrollable track on mobile */}
+              <div className="f1 row compare-cols-track" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 12 }}>
+                {[0, 1, 2].map((i) => {
+                  const s = sites[i];
+                  const cell = compare[i];
+                  const found = allCandidates.find((c) => c.cell === cell);
+                  const rawLoc = s?.locality || found?.locality || (found?.name ? found.name.replace(/^H\d+\s+in\s+/i, '') : 'Loading…');
+                  const locName = cell ? `H${i + 1} in ${rawLoc}` : 'Select a site';
 
                 return (
-                  <div key={i} className="f1 col g12" style={{ paddingRight: 16, minWidth: 0 }}>
+                  <div key={i} className="f1 col g12 compare-col" style={{ paddingRight: 16, minWidth: 260 }}>
                     <div className="card pad16 row sb shadow" style={{ position: 'relative' }}>
                       {cell ? (
                         <>
@@ -600,6 +661,7 @@ export default function Compare() {
                   </div>
                 );
               })}
+              </div>
             </div>
 
             {d.error && <ErrorBox compact error={d.error} />}
@@ -627,70 +689,76 @@ export default function Compare() {
                 </div>
 
                 <Collapse open title="Key numbers">
-                  <Row
-                    k="Revenue P10 – P90"
-                    vals={sites.map((s) => `${inr(s.revenue.p10)} – ${inr(s.revenue.p90)}`)}
-                    raw={sites.map((s) => s.revenue.p50)}
-                  />
-                  <Row
-                    k="Expected profit"
-                    vals={sites.map((s) => inr(s.profit.exp))}
-                    raw={sites.map((s) => s.profit.exp)}
-                  />
-                  <Row
-                    k="Downside profit (P10)"
-                    vals={sites.map((s) => inr(s.profit.p10))}
-                    raw={sites.map((s) => s.profit.p10)}
-                  />
-                  <Row
-                    k="Assumed rent"
-                    vals={sites.map((s) => `₹${s.rent} /sq ft/mo`)}
-                    raw={sites.map((s) => s.rent)}
-                    dir={-1}
-                  />
-                  <Row
-                    k="Break-even rent"
-                    vals={sites.map((s) => `₹${Math.round(s.breakevenRent)}`)}
-                    raw={sites.map((s) => s.breakevenRent)}
-                  />
-                  <Row
-                    k="Rent-to-revenue"
-                    vals={sites.map((s) => `${(((s.rent * s.area * 12) / s.revenue.p50) * 100).toFixed(1)}%`)}
-                    raw={sites.map((s) => (s.rent * s.area * 12) / s.revenue.p50)}
-                    dir={-1}
-                  />
+                  <div className="compare-table-scroll" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    <Row
+                      k="Revenue P10 – P90"
+                      vals={sites.map((s) => `${inr(s.revenue.p10)} – ${inr(s.revenue.p90)}`)}
+                      raw={sites.map((s) => s.revenue.p50)}
+                    />
+                    <Row
+                      k="Expected profit"
+                      vals={sites.map((s) => inr(s.profit.exp))}
+                      raw={sites.map((s) => s.profit.exp)}
+                    />
+                    <Row
+                      k="Downside profit (P10)"
+                      vals={sites.map((s) => inr(s.profit.p10))}
+                      raw={sites.map((s) => s.profit.p10)}
+                    />
+                    <Row
+                      k="Assumed rent"
+                      vals={sites.map((s) => `₹${s.rent} /sq ft/mo`)}
+                      raw={sites.map((s) => s.rent)}
+                      dir={-1}
+                    />
+                    <Row
+                      k="Break-even rent"
+                      vals={sites.map((s) => `₹${Math.round(s.breakevenRent)}`)}
+                      raw={sites.map((s) => s.breakevenRent)}
+                    />
+                    <Row
+                      k="Rent-to-revenue"
+                      vals={sites.map((s) => `${(((s.rent * s.area * 12) / s.revenue.p50) * 100).toFixed(1)}%`)}
+                      raw={sites.map((s) => (s.rent * s.area * 12) / s.revenue.p50)}
+                      dir={-1}
+                    />
+                  </div>
                 </Collapse>
 
                 <Collapse open title="Stress tests">
-                  {['competitor500m', 'rentUp25', 'demandDown15', 'marginDown2'].map((k) => (
+                  <div className="compare-table-scroll" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    {['competitor500m', 'rentUp25', 'demandDown15', 'marginDown2'].map((k) => (
+                      <Row
+                        key={k}
+                        k={sites[0].stress[k].label}
+                        vals={sites.map((s) => `${s.stress[k].pass ? 'Pass' : 'Fail'} · Tier ${s.stress[k].tier}`)}
+                        raw={sites.map((s) => s.stress[k].exp)}
+                      />
+                    ))}
                     <Row
-                      key={k}
-                      k={sites[0].stress[k].label}
-                      vals={sites.map((s) => `${s.stress[k].pass ? 'Pass' : 'Fail'} · Tier ${s.stress[k].tier}`)}
-                      raw={sites.map((s) => s.stress[k].exp)}
+                      k="Passes"
+                      vals={sites.map((s) => `${s.stress.passes} of 4`)}
+                      raw={sites.map((s) => s.stress.passes)}
                     />
-                  ))}
-                  <Row
-                    k="Passes"
-                    vals={sites.map((s) => `${s.stress.passes} of 4`)}
-                    raw={sites.map((s) => s.stress.passes)}
-                  />
+                  </div>
                 </Collapse>
 
                 <Collapse open title="Cannibalisation">
-                  <Row
-                    k="Taken from own stores"
-                    vals={sites.map((s) => (s.cannibalisation ? inr(s.cannibalisation.takenRs) : 'No own stores'))}
-                    raw={sites.map((s) => s.cannibalisation?.takenRs ?? NaN)}
-                    dir={-1}
-                  />
-                  <Row
-                    k="Net network profit"
-                    vals={sites.map((s) =>
-                      s.cannibalisation ? inr(s.cannibalisation.netNetworkProfit) : inr(s.profit.exp)
-                    )}
-                    raw={sites.map((s) => s.cannibalisation?.netNetworkProfit ?? s.profit.exp)}
-                  />
+                  <div className="compare-table-scroll" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    <Row
+                      k="Taken from own stores"
+                      vals={sites.map((s) => (s.cannibalisation ? inr(s.cannibalisation.takenRs) : 'No own stores'))}
+                      raw={sites.map((s) => s.cannibalisation?.takenRs ?? NaN)}
+                      dir={-1}
+                    />
+                    <Row
+                      k="Net network profit"
+                      vals={sites.map((s) =>
+                        s.cannibalisation ? inr(s.cannibalisation.netNetworkProfit) : inr(s.profit.exp)
+                      )}
+                      raw={sites.map((s) => s.cannibalisation?.netNetworkProfit ?? s.profit.exp)}
+                    />
+                  </div>
                 </Collapse>
 
                 <Collapse title="Why here · drivers">

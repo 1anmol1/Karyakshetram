@@ -11,6 +11,30 @@ import HexMap from '../components/HexMap.jsx';
 const STRESS_ORDER = ['competitor500m', 'rentUp25', 'demandDown15', 'marginDown2'];
 const LANDUSE = [['res', 'Residential'], ['com', 'Commercial'], ['ind', 'Industrial'], ['green', 'Green'], ['water', 'Water']];
 
+const locationExplainCache = new Map();
+
+function getCachedExplain(cellId, category) {
+  if (!cellId) return null;
+  const key = `loc_ex_${cellId}_${category}`;
+  if (locationExplainCache.has(key)) return locationExplainCache.get(key);
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      locationExplainCache.set(key, parsed);
+      return parsed;
+    }
+  } catch {}
+  return null;
+}
+
+function setCachedExplain(cellId, category, val) {
+  if (!cellId || !val) return;
+  const key = `loc_ex_${cellId}_${category}`;
+  locationExplainCache.set(key, val);
+  try { sessionStorage.setItem(key, JSON.stringify(val)); } catch {}
+}
+
 export default function Location() {
   const { cellId } = useParams();
   const [searchParams] = useSearchParams();
@@ -21,7 +45,7 @@ export default function Location() {
   const nav = useNavigate();
   const d = useApi(`/cells/${cellId}?category=${category}`, [category, cellId]);
   const hex = useApi(`/cells?category=${category}`, [category]);
-  const [ex, setEx] = useState(null);
+  const [ex, setEx] = useState(() => getCachedExplain(cellId, category));
   const [tab, setTab] = useState('Summary');
   const [ai, setAi] = useState(false);
   const [simFilter, setSimFilter] = useState('all');
@@ -29,7 +53,20 @@ export default function Location() {
   const [savedId, setSavedId] = useState(null);
   const [modal, setModal] = useState(null);
   const [rent, setRent] = useState(null);
-  useEffect(() => { setEx(null); api('/explain', { method: 'POST', body: { cellId, category } }).then(setEx).catch((e) => setEx({ error: e })); }, [cellId, category]);
+  useEffect(() => {
+    const cached = getCachedExplain(cellId, category);
+    if (cached) {
+      setEx(cached);
+      return;
+    }
+    setEx(null);
+    api('/explain', { method: 'POST', body: { cellId, category } })
+      .then((r) => {
+        setCachedExplain(cellId, category, r);
+        setEx(r);
+      })
+      .catch((e) => setEx({ error: e }));
+  }, [cellId, category]);
   useEffect(() => { api('/saved').then((r) => setSavedId(r.saved.find((x) => x.cell === cellId && x.category === category)?._id || null)).catch(() => {}); }, [cellId, category]);
   useEffect(() => { setRent(null); setTab('Summary'); }, [cellId]);
 
@@ -207,7 +244,7 @@ export default function Location() {
             {sim.loading && [1, 2, 3, 4].map((i) => <div key={i} className="row g12"><Skel h={96} w={168} style={{ borderRadius: 12 }} /><div className="col g6 f1"><Skel h={14} /><Skel h={12} w="70%" /></div></div>)}
             {sim.error && <ErrorBox compact error={sim.error} onRetry={sim.refetch} />}
             {sim.data?.similar?.length === 0 && <div className="s13 muted">No similar locations match this filter.</div>}
-            {sim.data?.similar?.map((s) => <SimilarRow key={s.cell} s={s} onOpen={() => nav(`/location/${s.cell}`)}><HexMap features={null} picks={[{ lat: s.lat, lon: s.lon }]} center={[s.lat, s.lon]} zoom={13} controls={false} legend={false} interactive={false} /></SimilarRow>)}
+            {sim.data?.similar?.map((s, idx) => <SimilarRow key={s.cell} s={s} i={idx} onOpen={() => nav(`/location/${s.cell}?h=${idx + 1}`)}><HexMap features={null} picks={[{ lat: s.lat, lon: s.lon }]} center={[s.lat, s.lon]} zoom={13} controls={false} legend={false} interactive={false} /></SimilarRow>)}
           </>}
         </aside>
       </div>

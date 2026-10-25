@@ -216,6 +216,7 @@ function setCachedSummary(key, val) {
   summaryMemoryCache.set(key, val);
   try {
     sessionStorage.setItem(`ks_summary_${key}`, JSON.stringify(val));
+    sessionStorage.setItem('ks_summary_last_key', key);
   } catch {}
 }
 
@@ -224,6 +225,9 @@ function clearCachedSummary(key) {
   summaryMemoryCache.delete(key);
   try {
     sessionStorage.removeItem(`ks_summary_${key}`);
+    if (sessionStorage.getItem('ks_summary_last_key') === key) {
+      sessionStorage.removeItem('ks_summary_last_key');
+    }
   } catch {}
 }
 
@@ -252,7 +256,13 @@ export default function Dashboard() {
 
   const [cells, setCells] = useState(null);
   const [trend, setTrend] = useState(null);
-  const [summary, setSummary] = useState(null);
+  const [summary, setSummary] = useState(() => {
+    try {
+      const lastKey = sessionStorage.getItem('ks_summary_last_key');
+      if (lastKey) return getCachedSummary(lastKey);
+    } catch {}
+    return null;
+  });
   const [shops, setShops] = useState(null);
   const [shopTag, setShopTag] = useState('all');
   const [view, setView] = useState('map');
@@ -408,10 +418,7 @@ export default function Dashboard() {
   const best = displayPicks.find((p) => !p.empty);
 
   useEffect(() => {
-    if (!best?.cell) {
-      setSummary(null);
-      return;
-    }
+    if (!best?.cell) return;
     const cellKey = best.cell;
     const filterKey = `${cellKey}_${category}_${Array.from(filters.tiers).sort().join('')}_${Array.from(filters.conf).sort().join('')}_${filters.maxRent}_${filters.spacing}_${filters.hideEmpty}`;
 
@@ -435,8 +442,8 @@ export default function Dashboard() {
   }, [
     best?.cell,
     category,
-    filters.tiers,
-    filters.conf,
+    Array.from(filters.tiers).sort().join(''),
+    Array.from(filters.conf).sort().join(''),
     filters.maxRent,
     filters.spacing,
     filters.hideEmpty,
@@ -945,7 +952,7 @@ export default function Dashboard() {
 
       <SystemBanners />
 
-      <div className="row as wrapx stack-md" style={{ padding: '20px 28px', gap: 20 }}>
+      <div className="row as wrapx stack-md dashboard-main-stack" style={{ padding: '20px 28px', gap: 20 }}>
         {/* left: trending */}
         <aside className="col g12" style={{ width: 280 }}>
           <Collapse

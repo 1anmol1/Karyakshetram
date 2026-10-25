@@ -97,12 +97,29 @@ export function ErrorBox({ error, onRetry, compact }) {
 }
 
 export function AiStreamingText({ text, speed = 14, onComplete }) {
-  const [displayedLength, setDisplayedLength] = useState(0);
-  const [isTyping, setIsTyping] = useState(true);
+  const seenKey = text ? `ai_streamed_${text.slice(0, 36).replace(/[^a-zA-Z0-9]/g, '_')}` : '';
+  const initialSeen = Boolean(seenKey && (() => {
+    try { return !!sessionStorage.getItem(seenKey); } catch { return false; }
+  })());
+
+  const [displayedLength, setDisplayedLength] = useState(() => (initialSeen && text ? text.length : 0));
+  const [isTyping, setIsTyping] = useState(() => !initialSeen);
 
   useEffect(() => {
     if (!text) {
       setDisplayedLength(0);
+      setIsTyping(false);
+      return undefined;
+    }
+
+    const key = `ai_streamed_${text.slice(0, 36).replace(/[^a-zA-Z0-9]/g, '_')}`;
+    let alreadySeen = false;
+    try {
+      alreadySeen = !!sessionStorage.getItem(key);
+    } catch {}
+
+    if (alreadySeen) {
+      setDisplayedLength(text.length);
       setIsTyping(false);
       return undefined;
     }
@@ -118,6 +135,7 @@ export function AiStreamingText({ text, speed = 14, onComplete }) {
       if (current >= text.length) {
         clearInterval(interval);
         setIsTyping(false);
+        try { sessionStorage.setItem(key, '1'); } catch {}
         onComplete?.();
       }
     }, speed);
