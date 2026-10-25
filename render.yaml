@@ -27,3 +27,5 @@ services:
         sync: false
       - key: LLM_API_KEY
         sync: false
+      - key: VITE_GOOGLE_MAPS_KEY
+        value: AIzaSyC1FrQwnWsdmL9MTnVZ1x-MhcufYUDxLpU

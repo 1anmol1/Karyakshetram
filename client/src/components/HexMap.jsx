@@ -1,15 +1,52 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.gridlayer.googlemutant';
 import { useTheme } from '../lib/state.jsx';
 import { inr } from '../lib/format.js';
 import { Icon } from './ui.jsx';
 
+const GMAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY || '';
+
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/* Singleton: load the Google Maps JS API once globally */
+let gmapsLoaded = false;
+let gmapsLoading = false;
+const gmapsCallbacks = [];
+function loadGmapsApi(cb) {
+  if (gmapsLoaded) { cb(); return; }
+  gmapsCallbacks.push(cb);
+  if (gmapsLoading) return;
+  gmapsLoading = true;
+  if (!GMAPS_KEY) {
+    // No key available — resolve immediately (will fallback to OSM)
+    gmapsLoaded = true;
+    gmapsCallbacks.forEach((f) => f());
+    gmapsCallbacks.length = 0;
+    return;
+  }
+  const s = document.createElement('script');
+  s.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_KEY}&libraries=places`;
+  s.async = true;
+  s.defer = true;
+  s.onload = () => {
+    gmapsLoaded = true;
+    gmapsCallbacks.forEach((f) => f());
+    gmapsCallbacks.length = 0;
+  };
+  s.onerror = () => {
+    // Fallback gracefully
+    gmapsLoaded = true;
+    gmapsCallbacks.forEach((f) => f());
+    gmapsCallbacks.length = 0;
+  };
+  document.head.appendChild(s);
+}
+
 /**
- * Leaflet H3 hex choropleth (FR-11). Hex layer still renders if basemap tiles fail (PRD 6.9).
+ * Leaflet H3 hex choropleth with Google Maps basemap (FR-11).
  * props: features (GeoJSON), picks [{lat,lon,n,label,color}], own [{lat,lon,label}], comps [{lat,lon,name}],
  *        rings [{lat,lon,km,kind}], pin {lat,lon}, selected cellId, tiers Set, center [lat,lon], zoom,
  *        onCellClick(feature), onMapClick({lat,lon}), legend, controls, fit ('features'|'markers'|null)
@@ -18,6 +55,7 @@ export default function HexMap({ features, picks = [], own = [], comps = [], rin
   const el = useRef(null), map = useRef(null), layers = useRef({});
   const { theme } = useTheme();
   const [offline, setOffline] = useState(false);
+  const [gmReady, setGmReady] = useState(gmapsLoaded);
   const cbs = useRef({}); cbs.current = { onCellClick, onMapClick };
 
   // Compute locality rank map for accurate H1, H2, H3 labels in every locality
@@ -44,21 +82,65 @@ export default function HexMap({ features, picks = [], own = [], comps = [], rin
     return rankMap;
   }, [features]);
 
+  // Trigger Google Maps API load early
   useEffect(() => {
-    const m = L.map(el.current, { zoomControl: false, attributionControl: false, scrollWheelZoom: false, dragging: interactive, doubleClickZoom: interactive, preferCanvas: false })
-      .setView(center || [18.555, 73.85], zoom);
-    const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, subdomains: 'abc', crossOrigin: true });
-    let errs = 0;
-    tiles.on('tileerror', () => { errs++; if (errs > 3) setOffline(true); });
-    tiles.on('tileload', () => { errs = 0; setOffline(false); });
-    tiles.addTo(m);
-    layers.current = { hex: L.layerGroup().addTo(m), marks: L.layerGroup().addTo(m), tiles };
+    if (!gmapsLoaded) {
+      loadGmapsApi(() => setGmReady(true));
+    }
+  }, []);
+
+  // Initialise the Leaflet map once gmaps is ready (or immediately if no key)
+  useEffect(() => {
+    if (!gmReady) return;
+    if (map.current) return; // already initialised
+
+    const m = L.map(el.current, {
+      zoomControl: false,
+      attributionControl: false,
+      scrollWheelZoom: false,
+      dragging: interactive,
+      doubleClickZoom: interactive,
+      preferCanvas: false,
+    }).setView(center || [18.555, 73.85], zoom);
+
+    let baseTile;
+
+    if (GMAPS_KEY && window.google?.maps) {
+      // Google Maps basemap — roadmap style, city context only
+      try {
+        baseTile = L.gridLayer.googleMutant({
+          type: 'roadmap',
+          styles: [
+            // Remove points of interest clutter — keep roads & city layout
+            { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+            { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
+            { featureType: 'transit', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+            { featureType: 'road', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+            // Subtle, desaturated look so hex overlays stand out
+            { elementType: 'geometry', stylers: [{ saturation: -20 }] },
+            { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#aecbf0' }] },
+            { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#f5f5f2' }] },
+          ],
+          maxZoom: 20,
+        });
+        baseTile.addTo(m);
+      } catch (e) {
+        // Fallback to OSM if mutant fails
+        baseTile = _osmFallback(m, setOffline);
+      }
+    } else {
+      // No Google Maps key or API not loaded — fallback to OSM
+      baseTile = _osmFallback(m, setOffline);
+    }
+
+    layers.current = { hex: L.layerGroup().addTo(m), marks: L.layerGroup().addTo(m), tiles: baseTile };
     m.on('click', (e) => cbs.current.onMapClick?.({ lat: e.latlng.lat, lon: e.latlng.lng }));
     map.current = m;
+
     const ro = new ResizeObserver(() => { if (map.current) m.invalidateSize({ animate: false }); });
     ro.observe(el.current);
     return () => { ro.disconnect(); m.stop(); m.off(); m.remove(); map.current = null; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gmReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (center && map.current) map.current.setView(center, zoom ?? map.current.getZoom(), { animate: true }); }, [center?.[0], center?.[1], zoom]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -113,7 +195,7 @@ export default function HexMap({ features, picks = [], own = [], comps = [], rin
 
   const z = (d) => map.current?.setZoom(map.current.getZoom() + d);
   const recenter = () => { const pts = [...picks, ...own].map((p) => [p.lat, p.lon]); if (pts.length) map.current.fitBounds(pts, { padding: [40, 40], maxZoom: 14 }); else map.current.setView(center || [18.555, 73.85], zoom); };
-  const toggleTiles = () => { const t = layers.current.tiles; if (map.current.hasLayer(t)) map.current.removeLayer(t); else t.addTo(map.current); };
+  const toggleTiles = () => { const t = layers.current.tiles; if (!t) return; if (map.current.hasLayer(t)) map.current.removeLayer(t); else t.addTo(map.current); };
 
   return (
     <div className="map" style={{ height }}>
@@ -136,7 +218,17 @@ export default function HexMap({ features, picks = [], own = [], comps = [], rin
         </div>
       </div>}
       {offline && interactive && <span className="tag maptag" style={{ left: 14, top: 14, background: 'var(--bg)', height: 28 }}><Icon n="wifi-off-line" s={12} />Basemap offline · hex layer still shown</span>}
-      {interactive && <div className="attrib">© OpenStreetMap contributors · WorldPop</div>}
+      {interactive && <div className="attrib">© Google Maps · WorldPop</div>}
     </div>
   );
+}
+
+// OSM fallback tile layer helper
+function _osmFallback(m, setOffline) {
+  const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, subdomains: 'abc', crossOrigin: true });
+  let errs = 0;
+  tiles.on('tileerror', () => { errs++; if (errs > 3) setOffline(true); });
+  tiles.on('tileload', () => { errs = 0; setOffline(false); });
+  tiles.addTo(m);
+  return tiles;
 }
