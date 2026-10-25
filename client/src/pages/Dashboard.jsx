@@ -229,7 +229,7 @@ function clearCachedSummary(key) {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { category, catInfo, locality, setLocality, setPicks, compare, toggleCompare, categories } = useApp();
+  const { category, catInfo, locality, setLocality, setPicks, compare, setCompare, categories } = useApp();
   const toast = useToast();
   const nav = useNavigate();
   const goals = user.profile?.category === category ? user.profile.goals || {} : {};
@@ -523,9 +523,18 @@ export default function Dashboard() {
     }
   };
 
-  const onCompare = (cell) => {
-    const r = toggleCompare(cell);
-    if (r === 'full') toast('You can compare up to 3 sites. Remove one to add another.', { tone: 'warn', icon: 'error-warning-line' });
+  const onCompare = (cell, label) => {
+    if (compare.includes(cell)) {
+      setCompare(compare.filter((c) => c !== cell));
+      toast(`Removed ${label || 'location'} from comparison`, { tone: 'info', icon: 'delete-bin-line' });
+      return;
+    }
+    if (compare.length === 0) {
+      setCompare([cell]);
+      toast(`Added ${label || 'location'} to compare (1 of 3)`, { tone: 'ok', icon: 'scales-3-line' });
+      return;
+    }
+    nav(`/compare?add=${cell}&name=${encodeURIComponent(label || 'Location')}`);
   };
 
   // Derive InShort model insights from active recommendations
@@ -1114,15 +1123,28 @@ export default function Dashboard() {
                               <span className="tag">{p.stress?.passes || 3} of 4 pass</span>
                             </td>
                             <td>
-                              <button
-                                className="btn out sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  nav(`/location/${p.cell}?h=${idx + 1}`);
-                                }}
-                              >
-                                View Site <Icon n="arrow-right-s-line" s={14} />
-                              </button>
+                              <span className="row g6">
+                                <button
+                                  className={`btn sm ${compare.includes(p.cell) ? 'soft' : 'out'}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onCompare(p.cell, p.locality ? `H${idx + 1} in ${p.locality}` : p.label);
+                                  }}
+                                  title={compare.includes(p.cell) ? 'Remove from comparison' : 'Compare this location'}
+                                >
+                                  <Icon n="scales-3-line" s={14} />
+                                  {compare.includes(p.cell) ? 'In compare' : 'Compare'}
+                                </button>
+                                <button
+                                  className="btn out sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    nav(`/location/${p.cell}?h=${idx + 1}`);
+                                  }}
+                                >
+                                  View Site <Icon n="arrow-right-s-line" s={14} />
+                                </button>
+                              </span>
                             </td>
                           </tr>
                         );
@@ -1190,10 +1212,6 @@ export default function Dashboard() {
                   {summary.claims?.slice(0, 3).flatMap((c) => c.evidence.slice(0, 1)).map((e) => (
                     <span key={e} className="tag">{e} {summary.evidence?.items?.find((i) => i.id === e)?.key}</span>
                   ))}
-                </div>
-                <div className="row sb s11 muted">
-                  <span className="row g4"><Icon n="shield-check-line" s={12} c="var(--ok)" />Every number traced to evidence record</span>
-                  <span>{summary.narrative_source === 'gemini' ? 'Source: Gemini AI · grounded' : summary.narrative_source === 'llm' ? 'Source: LLM · temp 0' : 'Template summary'}</span>
                 </div>
               </>
             )}
@@ -1300,7 +1318,7 @@ export default function Dashboard() {
                 i={i}
                 selected={i === 0}
                 compared={compare.includes(p.cell)}
-                onCompare={() => onCompare(p.cell)}
+                onCompare={() => onCompare(p.cell, p.locality ? `H${i + 1} in ${p.locality}` : p.label)}
                 onClick={() => nav(`/location/${p.cell}?h=${i + 1}`)}
               />
             ))}

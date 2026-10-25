@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useApp, useToast } from '../lib/state.jsx';
 import { inr, downloadCsv } from '../lib/format.js';
 import { Header, Footer, SystemBanners } from '../components/Layout.jsx';
-import { Icon, Tier, Conf, Collapse, Photo, Skel, ErrorBox } from '../components/ui.jsx';
+import { Icon, Tier, Conf, Collapse, Photo, Skel, ErrorBox, Modal } from '../components/ui.jsx';
 import { Drivers } from './Location.jsx';
 import HexMap from '../components/HexMap.jsx';
 
@@ -31,7 +31,10 @@ export default function Compare() {
   const [searchQ, setSearchQ] = useState('');
   const [filterTab, setFilterTab] = useState('all');
   const nav = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
+  const addCell = searchParams.get('add');
+  const addName = searchParams.get('name') || 'Selected Location';
 
   // Load saved locations
   useEffect(() => {
@@ -108,14 +111,53 @@ export default function Compare() {
     return list;
   }, [picks, fetchedPicks, saved]);
 
-  // Auto-initialize comparison with 2 sites if empty or fewer than 2
+  // If addCell is already in compare, notify and clean URL
   useEffect(() => {
-    if (compare.length < 2 && allCandidates.length >= 2) {
+    if (addCell && compare.includes(addCell)) {
+      toast(`${addName} is already in the comparison`, { tone: 'info', icon: 'information-line' });
+      const next = new URLSearchParams(searchParams);
+      next.delete('add');
+      next.delete('name');
+      setSearchParams(next, { replace: true });
+    }
+  }, [addCell, compare]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-initialize comparison with 2 sites if empty or fewer than 2 (only when not adding via modal)
+  useEffect(() => {
+    if (!addCell && compare.length < 2 && allCandidates.length >= 2) {
       const c1 = allCandidates[0].cell;
       const c2 = allCandidates.find((c) => c.cell !== c1)?.cell || allCandidates[1].cell;
       setCompare([c1, c2]);
     }
-  }, [allCandidates.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allCandidates.length, addCell]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const closeAddModal = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('add');
+    next.delete('name');
+    setSearchParams(next, { replace: true });
+  };
+
+  const handleStartFresh = () => {
+    const second = allCandidates.find((c) => c.cell !== addCell)?.cell || PUNE_KEY_HUBS[0].cell;
+    setCompare([addCell, second]);
+    closeAddModal();
+    toast(`Started fresh comparison with ${addName}`, { tone: 'ok', icon: 'sparkling-2-line' });
+  };
+
+  const handleReplaceSite = (idx, existingName) => {
+    const next = [...compare];
+    next[idx] = addCell;
+    setCompare(next);
+    closeAddModal();
+    toast(`Replaced ${existingName} with ${addName}`, { tone: 'ok', icon: 'arrow-left-right-line' });
+  };
+
+  const handleAddKeepExisting = () => {
+    setCompare([...compare, addCell]);
+    closeAddModal();
+    toast(`Added ${addName} to comparison (${compare.length + 1} of 3)`, { tone: 'ok', icon: 'checkbox-circle-line' });
+  };
 
   // Execute compare API call whenever compare array changes
   useEffect(() => {
@@ -709,6 +751,97 @@ export default function Compare() {
           </>
         )}
       </div>
+      {/* Modal asking user how to update comparison when arriving with ?add= */}
+      {addCell && !compare.includes(addCell) && (
+        <Modal
+          open={true}
+          onClose={closeAddModal}
+          title={`Add ${addName} to Comparison`}
+        >
+          <div className="col g16" style={{ padding: '6px 0' }}>
+            <p className="s14 muted" style={{ lineHeight: 1.5 }}>
+              You currently have <b>{compare.length} site{compare.length > 1 ? 's' : ''}</b> in your comparison. Choose which one to remove, or start fresh:
+            </p>
+
+            {/* Option 1: Start fresh */}
+            <div className="card pad16 col g8" style={{ border: '1.5px solid var(--line)', background: 'var(--surface)' }}>
+              <div className="row sb ac">
+                <span className="b s14">Option 1 · Start fresh</span>
+                <span className="tag acc">Reset</span>
+              </div>
+              <span className="s12 muted">
+                Clear all existing sites and compare <b>{addName}</b> from scratch.
+              </span>
+              <button
+                className="btn out sm"
+                style={{ alignSelf: 'flex-start', marginTop: 4 }}
+                onClick={handleStartFresh}
+              >
+                <Icon n="refresh-line" s={14} />
+                Start fresh with {addName}
+              </button>
+            </div>
+
+            {/* Option 2: Replace an existing site */}
+            <div className="card pad16 col g10" style={{ border: '1.5px solid var(--line)' }}>
+              <div className="row sb ac">
+                <span className="b s14">Option 2 · Replace a site already in compare</span>
+                <span className="tag">Swap</span>
+              </div>
+              <span className="s12 muted">
+                Click on any site below to remove it and put <b>{addName}</b> in its slot:
+              </span>
+              <div className="col g8">
+                {compare.map((existingCell, i) => {
+                  const existingSite = sites.find((s) => s.cell === existingCell) || allCandidates.find((c) => c.cell === existingCell);
+                  const existingName = existingSite?.locality || existingSite?.name || `Site ${i + 1}`;
+                  return (
+                    <button
+                      key={existingCell}
+                      className="btn out sm row sb"
+                      style={{ width: '100%', padding: '10px 14px', textAlign: 'left', borderRadius: 10, height: 'auto' }}
+                      onClick={() => handleReplaceSite(i, existingName)}
+                    >
+                      <span className="row g8 ac">
+                        <Icon n="arrow-left-right-line" s={15} c="var(--accent)" />
+                        <span>Remove <b>{existingName}</b> &amp; add <b>{addName}</b></span>
+                      </span>
+                      <span className="tag s11 muted">Slot {i + 1}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Option 3: Keep existing and add as 3rd site (if compare.length < 3) */}
+            {compare.length < 3 && (
+              <div className="card pad16 col g8" style={{ border: '1.5px solid var(--accent)', background: 'var(--accentSoft)' }}>
+                <div className="row sb ac">
+                  <span className="b s14" style={{ color: 'var(--accent)' }}>Option 3 · Add as Site {compare.length + 1} (Keep all)</span>
+                  <span className="tag ok b">Slot Available</span>
+                </div>
+                <span className="s12 muted">
+                  You currently have {compare.length} of 3 maximum slots used. Keep all current sites and compare {addName} alongside them.
+                </span>
+                <button
+                  className="btn ink sm"
+                  style={{ alignSelf: 'flex-start', marginTop: 4 }}
+                  onClick={handleAddKeepExisting}
+                >
+                  <Icon n="add-line" s={14} />
+                  Add {addName} as Site {compare.length + 1}
+                </button>
+              </div>
+            )}
+
+            <div className="row jc" style={{ marginTop: 4 }}>
+              <button className="btn ghost sm" onClick={closeAddModal}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
       <Footer />
     </div>
   );

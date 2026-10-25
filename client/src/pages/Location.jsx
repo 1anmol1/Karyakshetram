@@ -15,7 +15,7 @@ export default function Location() {
   const { cellId } = useParams();
   const [searchParams] = useSearchParams();
   const hParam = searchParams.get('h');
-  const { category, catInfo, picks, compare, toggleCompare } = useApp();
+  const { category, catInfo, picks, compare, setCompare } = useApp();
   const { user } = useAuth();
   const toast = useToast();
   const nav = useNavigate();
@@ -54,6 +54,20 @@ export default function Location() {
     } catch (e) { toast(e.message, { tone: 'bad', icon: 'error-warning-line' }); }
   };
 
+  const handleLocationCompare = () => {
+    if (compare.includes(cellId)) {
+      setCompare(compare.filter((c) => c !== cellId));
+      toast(`Removed ${hexLocationName} from comparison`, { tone: 'info', icon: 'delete-bin-line' });
+      return;
+    }
+    if (compare.length === 0) {
+      setCompare([cellId]);
+      toast(`Added ${hexLocationName} to compare (1 of 3)`, { tone: 'ok', icon: 'scales-3-line' });
+      return;
+    }
+    nav(`/compare?add=${cellId}&name=${encodeURIComponent(hexLocationName)}`);
+  };
+
   if (d.error) return <div className="page page-full"><Header back /><div className="wrapx" style={{ padding: 40 }}><div className="card"><ErrorBox error={d.error} onRetry={d.refetch} /></div></div></div>;
   if (!site) return <div className="page page-full"><Header back /><div className="wrapx col g16" style={{ padding: '20px 28px' }}><Skel h={420} style={{ borderRadius: 18 }} /><Skel h={34} w="50%" /><Skel h={140} style={{ borderRadius: 16 }} /></div></div>;
 
@@ -79,7 +93,7 @@ export default function Location() {
               <button className="btn out" onClick={share}><Icon n="share-forward-line" s={16} />Share</button>
               <button className={`btn ${ai ? 'pri' : 'out'}`} onClick={() => setAi(!ai)} aria-pressed={ai}><Icon n="sparkling-2-line" s={16} c={ai ? '#fff' : 'var(--accent2)'} />AI summary</button>
               <button className="btn out" onClick={toggleSave}><Icon n={savedId ? 'bookmark-fill' : 'bookmark-line'} s={16} c={savedId ? 'var(--accent)' : undefined} />{savedId ? 'Saved' : 'Save'}</button>
-              <button className={`btn ${compare.includes(cellId) ? 'soft' : 'out'}`} onClick={() => { const r = toggleCompare(cellId); if (r === 'full') toast('You can compare up to 3 sites. Remove one first.', { tone: 'warn', icon: 'error-warning-line' }); else if (r === 'added' && compare.length >= 1) toast('Added to compare', { action: { label: 'Open', onClick: () => nav('/compare') } }); }}><Icon n="scales-3-line" s={16} />{compare.includes(cellId) ? 'In compare' : 'Compare'}</button>
+              <button className={`btn ${compare.includes(cellId) ? 'soft' : 'out'}`} onClick={handleLocationCompare}><Icon n="scales-3-line" s={16} />{compare.includes(cellId) ? 'In compare' : 'Compare'}</button>
             </div>
           </div>
           {!eligible && <Banner tone="bad" icon="forbid-line" action={<button className="btn out sm" onClick={() => nav(`/check?lat=${site.lat}&lon=${site.lon}`)}>See alternatives</button>}>This cell fails a {catInfo?.name.toLowerCase()} rule: {site.eligible.reasons.join(', ')}.</Banner>}

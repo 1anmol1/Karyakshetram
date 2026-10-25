@@ -18,6 +18,21 @@ export default function Saved() {
     toast(`Removed ${item.name}`, { icon: 'bookmark-line', tone: 'info', action: { label: 'Undo', onClick: async () => { await api('/saved', { method: 'POST', body: { cellId: item.cell, category: item.category, name: item.name, list: item.list } }); s.refetch(); } } });
   };
   const open = (x) => { if (x.category !== category) setCategory(x.category); nav(`/location/${x.cell}`); };
+
+  const handleCompareClick = (cell, name) => {
+    if (compare.includes(cell)) {
+      setCompare(compare.filter((c) => c !== cell));
+      toast(`Removed ${name} from comparison`, { tone: 'info', icon: 'delete-bin-line' });
+      return;
+    }
+    if (compare.length === 0) {
+      setCompare([cell]);
+      toast(`Added ${name} to compare (1 of 3)`, { tone: 'ok', icon: 'scales-3-line' });
+      return;
+    }
+    nav(`/compare?add=${cell}&name=${encodeURIComponent(name)}`);
+  };
+
   return (
     <div className="page">
       <Header back />
@@ -35,7 +50,7 @@ export default function Saved() {
               {items.map((x) => <tr key={x._id} className="click" onClick={() => open(x)}>
                 <td className="b">{x.name}</td><td className="muted s12">{categories.find((c) => c.key === x.category)?.name}</td><td>{x.snapshot?.tier ? <Tier t={x.snapshot.tier} /> : '—'}</td><td className="num b">{inr(x.snapshot?.exp)}</td><td>₹{x.snapshot?.rent ?? '—'}</td><td className="muted s12">{new Date(x.createdAt).toLocaleDateString('en-IN')}</td>
                 <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}><span className="row g6" style={{ justifyContent: 'flex-end' }}>
-                  <button className={`btn sm ${compare.includes(x.cell) ? 'soft' : 'out'}`} disabled={x.category !== category} title={x.category !== category ? 'Switch to this category to compare' : ''} onClick={() => { const r = toggleCompare(x.cell); if (r === 'full') toast('You can compare up to 3 sites', { tone: 'warn' }); }}><Icon n="scales-3-line" s={14} />{compare.includes(x.cell) ? 'In compare' : 'Compare'}</button>
+                  <button className={`btn sm ${compare.includes(x.cell) ? 'soft' : 'out'}`} onClick={() => handleCompareClick(x.cell, x.name)}><Icon n="scales-3-line" s={14} />{compare.includes(x.cell) ? 'In compare' : 'Compare'}</button>
                   <button className="iconbtn" style={{ width: 32, height: 32 }} onClick={() => remove(x)} aria-label={`Remove ${x.name}`}><Icon n="delete-bin-line" s={15} /></button></span></td></tr>)}</tbody></table>
           </div>))}
         {compare.length >= 2 && <button className="btn ink" style={{ alignSelf: 'flex-start' }} onClick={() => nav('/compare')}><Icon n="scales-3-line" />Compare {compare.length} sites</button>}
