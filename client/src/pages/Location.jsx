@@ -145,39 +145,6 @@ export default function Location() {
               <Kv k="Takes from own" v={cn ? inr(cn.takenRs) : '—'} sub={cn ? `${pct(cn.ratio)} of its revenue` : 'No own stores of this category'} />
             </div>
           </div>
-          {ai && (
-            <div className="card pad16 col g12 shadow ai-summary-card" style={{ borderRadius: 16 }}>
-              <div className="row sb ac">
-                <span className="row g8 b s15 ac">
-                  <Icon n="sparkling-fill" s={18} c="var(--accent2)" />
-                  AI summary · {hexLocationName}
-                </span>
-                <button
-                  className="iconbtn"
-                  style={{ width: 28, height: 28 }}
-                  onClick={() => setAi(false)}
-                  title="Close AI summary"
-                  aria-label="Close AI summary"
-                >
-                  <Icon n="close-line" s={16} />
-                </button>
-              </div>
-              {ex?.error ? (
-                <ErrorBox compact error={ex.error} />
-              ) : !ex?.narrative ? (
-                <div className="col g8">
-                  <div className="row g6 ac muted s13">
-                    <Icon n="loader-4-line" className="spin" s={14} c="var(--accent2)" />
-                    <span>Synthesising AI summary from model predictions...</span>
-                  </div>
-                  <Skel h={14} />
-                  <Skel h={14} w="85%" />
-                </div>
-              ) : (
-                <AiStreamingText text={cleanAiText(ex.narrative)} speed={14} />
-              )}
-            </div>
-          )}
           <Tabs items={['Summary', 'Why here', 'Risks', 'Neighbourhood', 'Money']} value={tab} onChange={setTab} />
           {tab === 'Summary' && <div className="row as g16 stack-md">
             <div className="card pad20 col g12 f1"><div className="h4">Revenue range (calibrated 80%)</div>
