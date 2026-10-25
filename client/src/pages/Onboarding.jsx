@@ -198,18 +198,14 @@ export default function Onboarding() {
     };
   }, [step, nav, toast]);
 
-  // Row Major Split:
-  // Given array [0, 1, 2, 3, 4, 5, ...]
-  // Row 1 gets even indices [0, 2, 4, 6, 8, 10]
-  // Row 2 gets odd indices  [1, 3, 5, 7, 9, 11]
-  const formatRow1 = BUSINESS_FORMATS.filter((_, i) => i % 2 === 0);
-  const formatRow2 = BUSINESS_FORMATS.filter((_, i) => i % 2 !== 0);
-
-  const catRow1 = CATEGORY_ITEMS.filter((_, i) => i % 2 === 0);
-  const catRow2 = CATEGORY_ITEMS.filter((_, i) => i % 2 !== 0);
-
-  const chalRow1 = CHALLENGE_ITEMS.filter((_, i) => i % 2 === 0);
-  const chalRow2 = CHALLENGE_ITEMS.filter((_, i) => i % 2 !== 0);
+  // Column-major 2-column split: items flow top-to-bottom in each column
+  const toColMajor = (arr) => {
+    const half = Math.ceil(arr.length / 2);
+    return { col1: arr.slice(0, half), col2: arr.slice(half) };
+  };
+  const { col1: fmtCol1, col2: fmtCol2 } = toColMajor(BUSINESS_FORMATS);
+  const { col1: catCol1, col2: catCol2 } = toColMajor(CATEGORY_ITEMS);
+  const { col1: chalCol1, col2: chalCol2 } = toColMajor(CHALLENGE_ITEMS);
 
   return (
     <div className="ob-page">
@@ -398,67 +394,49 @@ export default function Onboarding() {
                   </div>
                 </div>
 
-                {/* 2 Rows one below other in Zig-Zag in Auto Horizontal Scroll (Row Major Order) */}
-                <div className="col g10 ac" style={{ marginTop: 6 }}>
-                  <div className="ob-ticker-hint">
-                    <Icon n="drag-move-2-line" s={14} />
-                    <span>Popular formats in Row-Major order • Hover to pause • Click to select</span>
+                {/* 2-column vertical grid (column-major order) */}
+                <div className="ob-grid-2col" style={{ marginTop: 6 }}>
+                  <div className="ob-grid-col">
+                    {fmtCol1.map((fmt) => {
+                      const active = form.businessType.toLowerCase() === fmt.name.toLowerCase();
+                      return (
+                        <div
+                          key={fmt.id}
+                          className={`ob-card ${active ? 'on' : ''}`}
+                          onClick={() => selectFormat(fmt)}
+                          role="button"
+                          tabIndex={0}
+                        >
+                          <div className="ob-card-icon"><Icon n={fmt.icon} /></div>
+                          <div className="ob-card-body">
+                            <span className="ob-card-title">{fmt.name}</span>
+                            <span className="ob-card-sub">{fmt.desc}</span>
+                          </div>
+                          <div className="ob-card-check">{active && <Icon n="check-line" s={14} />}</div>
+                        </div>
+                      );
+                    })}
                   </div>
-
-                  <div className="ob-zigzag-carousel-stage">
-                    {/* Row 1: Even indices in Row-Major order */}
-                    <div className="ob-marquee-track row-1">
-                      {[...formatRow1, ...formatRow1, ...formatRow1].map((fmt, idx) => {
-                        const active = form.businessType.toLowerCase() === fmt.name.toLowerCase();
-                        return (
-                          <div
-                            key={`r1-${fmt.id}-${idx}`}
-                            className={`ob-card ${active ? 'on' : ''}`}
-                            onClick={() => selectFormat(fmt)}
-                            role="button"
-                            tabIndex={0}
-                          >
-                            <div className="ob-card-icon">
-                              <Icon n={fmt.icon} />
-                            </div>
-                            <div className="ob-card-body">
-                              <span className="ob-card-title">{fmt.name}</span>
-                              <span className="ob-card-sub">{fmt.desc}</span>
-                            </div>
-                            <div className="ob-card-check">
-                              {active && <Icon n="check-line" s={14} />}
-                            </div>
+                  <div className="ob-grid-col">
+                    {fmtCol2.map((fmt) => {
+                      const active = form.businessType.toLowerCase() === fmt.name.toLowerCase();
+                      return (
+                        <div
+                          key={fmt.id}
+                          className={`ob-card ${active ? 'on' : ''}`}
+                          onClick={() => selectFormat(fmt)}
+                          role="button"
+                          tabIndex={0}
+                        >
+                          <div className="ob-card-icon"><Icon n={fmt.icon} /></div>
+                          <div className="ob-card-body">
+                            <span className="ob-card-title">{fmt.name}</span>
+                            <span className="ob-card-sub">{fmt.desc}</span>
                           </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Row 2: Odd indices placed below in Zig-Zag offset */}
-                    <div className="ob-marquee-track row-2">
-                      {[...formatRow2, ...formatRow2, ...formatRow2].map((fmt, idx) => {
-                        const active = form.businessType.toLowerCase() === fmt.name.toLowerCase();
-                        return (
-                          <div
-                            key={`r2-${fmt.id}-${idx}`}
-                            className={`ob-card ${active ? 'on' : ''}`}
-                            onClick={() => selectFormat(fmt)}
-                            role="button"
-                            tabIndex={0}
-                          >
-                            <div className="ob-card-icon">
-                              <Icon n={fmt.icon} />
-                            </div>
-                            <div className="ob-card-body">
-                              <span className="ob-card-title">{fmt.name}</span>
-                              <span className="ob-card-sub">{fmt.desc}</span>
-                            </div>
-                            <div className="ob-card-check">
-                              {active && <Icon n="check-line" s={14} />}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          <div className="ob-card-check">{active && <Icon n="check-line" s={14} />}</div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -493,69 +471,51 @@ export default function Onboarding() {
                   </div>
                 )}
 
-                <div className="col g10 ac">
-                  <div className="ob-ticker-hint">
-                    <Icon n="checkbox-multiple-line" s={14} />
-                    <span>Categories in Row-Major order • Hover to pause • Click cards to toggle</span>
+                {/* 2-column vertical grid (column-major order) */}
+                <div className="ob-grid-2col">
+                  <div className="ob-grid-col">
+                    {catCol1.map((cat) => {
+                      const active = form.categories.includes(cat.key);
+                      return (
+                        <div
+                          key={cat.key}
+                          className={`ob-card ${active ? 'on' : ''}`}
+                          onClick={() => toggleCategory(cat.key)}
+                          role="checkbox"
+                          aria-checked={active}
+                          tabIndex={0}
+                        >
+                          <div className="ob-card-icon"><Icon n={cat.icon} /></div>
+                          <div className="ob-card-body">
+                            <span className="ob-card-title">{cat.name}</span>
+                            <span className="ob-card-sub">{cat.desc}</span>
+                          </div>
+                          <div className="ob-card-check">{active && <Icon n="check-line" s={14} />}</div>
+                        </div>
+                      );
+                    })}
                   </div>
-
-                  {/* 2 Rows one below other in Zig-Zag in Auto Horizontal Scroll (Row Major Order) */}
-                  <div className="ob-zigzag-carousel-stage">
-                    {/* Row 1: Even indices in Row-Major order */}
-                    <div className="ob-marquee-track row-1">
-                      {[...catRow1, ...catRow1, ...catRow1].map((cat, idx) => {
-                        const active = form.categories.includes(cat.key);
-                        return (
-                          <div
-                            key={`c1-${cat.key}-${idx}`}
-                            className={`ob-card ${active ? 'on' : ''}`}
-                            onClick={() => toggleCategory(cat.key)}
-                            role="checkbox"
-                            aria-checked={active}
-                            tabIndex={0}
-                          >
-                            <div className="ob-card-icon">
-                              <Icon n={cat.icon} />
-                            </div>
-                            <div className="ob-card-body">
-                              <span className="ob-card-title">{cat.name}</span>
-                              <span className="ob-card-sub">{cat.desc}</span>
-                            </div>
-                            <div className="ob-card-check">
-                              {active && <Icon n="check-line" s={14} />}
-                            </div>
+                  <div className="ob-grid-col">
+                    {catCol2.map((cat) => {
+                      const active = form.categories.includes(cat.key);
+                      return (
+                        <div
+                          key={cat.key}
+                          className={`ob-card ${active ? 'on' : ''}`}
+                          onClick={() => toggleCategory(cat.key)}
+                          role="checkbox"
+                          aria-checked={active}
+                          tabIndex={0}
+                        >
+                          <div className="ob-card-icon"><Icon n={cat.icon} /></div>
+                          <div className="ob-card-body">
+                            <span className="ob-card-title">{cat.name}</span>
+                            <span className="ob-card-sub">{cat.desc}</span>
                           </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Row 2: Odd indices placed below in Zig-Zag offset */}
-                    <div className="ob-marquee-track row-2">
-                      {[...catRow2, ...catRow2, ...catRow2].map((cat, idx) => {
-                        const active = form.categories.includes(cat.key);
-                        return (
-                          <div
-                            key={`c2-${cat.key}-${idx}`}
-                            className={`ob-card ${active ? 'on' : ''}`}
-                            onClick={() => toggleCategory(cat.key)}
-                            role="checkbox"
-                            aria-checked={active}
-                            tabIndex={0}
-                          >
-                            <div className="ob-card-icon">
-                              <Icon n={cat.icon} />
-                            </div>
-                            <div className="ob-card-body">
-                              <span className="ob-card-title">{cat.name}</span>
-                              <span className="ob-card-sub">{cat.desc}</span>
-                            </div>
-                            <div className="ob-card-check">
-                              {active && <Icon n="check-line" s={14} />}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          <div className="ob-card-check">{active && <Icon n="check-line" s={14} />}</div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -607,64 +567,51 @@ export default function Onboarding() {
                   <span className="s12 muted">Select common industry challenges below:</span>
                 </div>
 
-                {/* 2 Rows one below other in Zig-Zag in Auto Horizontal Scroll (Row Major Order) */}
-                <div className="col g10 ac">
-                  <div className="ob-zigzag-carousel-stage">
-                    {/* Row 1 */}
-                    <div className="ob-marquee-track row-1">
-                      {[...chalRow1, ...chalRow1, ...chalRow1].map((ch, idx) => {
-                        const active = form.challenges.includes(ch.label);
-                        return (
-                          <div
-                            key={`ch1-${ch.id}-${idx}`}
-                            className={`ob-card sm ${active ? 'on' : ''}`}
-                            onClick={() => toggleChallenge(ch.label)}
-                            role="checkbox"
-                            aria-checked={active}
-                            tabIndex={0}
-                          >
-                            <div className="ob-card-icon">
-                              <Icon n={ch.icon} />
-                            </div>
-                            <div className="ob-card-body">
-                              <span className="ob-card-title">{ch.label}</span>
-                              <span className="ob-card-sub">{ch.desc}</span>
-                            </div>
-                            <div className="ob-card-check">
-                              {active && <Icon n="check-line" s={13} />}
-                            </div>
+                {/* 2-column vertical grid (column-major order) */}
+                <div className="ob-grid-2col">
+                  <div className="ob-grid-col">
+                    {chalCol1.map((ch) => {
+                      const active = form.challenges.includes(ch.label);
+                      return (
+                        <div
+                          key={ch.id}
+                          className={`ob-card sm ${active ? 'on' : ''}`}
+                          onClick={() => toggleChallenge(ch.label)}
+                          role="checkbox"
+                          aria-checked={active}
+                          tabIndex={0}
+                        >
+                          <div className="ob-card-icon"><Icon n={ch.icon} /></div>
+                          <div className="ob-card-body">
+                            <span className="ob-card-title">{ch.label}</span>
+                            <span className="ob-card-sub">{ch.desc}</span>
                           </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Row 2 in Zig-Zag offset */}
-                    <div className="ob-marquee-track row-2">
-                      {[...chalRow2, ...chalRow2, ...chalRow2].map((ch, idx) => {
-                        const active = form.challenges.includes(ch.label);
-                        return (
-                          <div
-                            key={`ch2-${ch.id}-${idx}`}
-                            className={`ob-card sm ${active ? 'on' : ''}`}
-                            onClick={() => toggleChallenge(ch.label)}
-                            role="checkbox"
-                            aria-checked={active}
-                            tabIndex={0}
-                          >
-                            <div className="ob-card-icon">
-                              <Icon n={ch.icon} />
-                            </div>
-                            <div className="ob-card-body">
-                              <span className="ob-card-title">{ch.label}</span>
-                              <span className="ob-card-sub">{ch.desc}</span>
-                            </div>
-                            <div className="ob-card-check">
-                              {active && <Icon n="check-line" s={13} />}
-                            </div>
+                          <div className="ob-card-check">{active && <Icon n="check-line" s={13} />}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="ob-grid-col">
+                    {chalCol2.map((ch) => {
+                      const active = form.challenges.includes(ch.label);
+                      return (
+                        <div
+                          key={ch.id}
+                          className={`ob-card sm ${active ? 'on' : ''}`}
+                          onClick={() => toggleChallenge(ch.label)}
+                          role="checkbox"
+                          aria-checked={active}
+                          tabIndex={0}
+                        >
+                          <div className="ob-card-icon"><Icon n={ch.icon} /></div>
+                          <div className="ob-card-body">
+                            <span className="ob-card-title">{ch.label}</span>
+                            <span className="ob-card-sub">{ch.desc}</span>
                           </div>
-                        );
-                      })}
-                    </div>
+                          <div className="ob-card-check">{active && <Icon n="check-line" s={13} />}</div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -673,7 +620,7 @@ export default function Onboarding() {
                     <Icon n="arrow-left-line" s={16} /> Back
                   </button>
                   <button type="button" className="ob-btn ink" onClick={goNext}>
-                    Complete Setup <Icon n="sparkling-2-line" s={16} />
+                    Complete Setup
                   </button>
                 </div>
               </>
