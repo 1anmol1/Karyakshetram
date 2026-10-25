@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: karyakshetram
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES
+        value: 7d
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: RATE_LIMIT_PER_MIN
+        value: 300
+      - key: MODEL_VERSION
+        value: rf-300-v1.0.0
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LLM_API_KEY
+        sync: false

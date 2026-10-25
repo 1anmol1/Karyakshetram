@@ -12,11 +12,18 @@ import storeRoutes from './routes/stores.js';
 import coreRoutes from './routes/core.js';
 import userRoutes from './routes/user.js';
 
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
-  app.use(helmet());
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(cors({
     origin: (origin, cb) => (!origin || config.corsOrigins.includes(origin) || config.corsOrigins.includes('*') ? cb(null, true) : cb(null, false)),
     credentials: true,
@@ -38,6 +45,17 @@ export function createApp() {
   app.use('/api', userRoutes);
   app.use('/api', coreRoutes);
   app.use('/api', (req, res) => res.status(404).json({ error: { code: 'NOT_FOUND', message: `No route ${req.method} ${req.originalUrl}`, field: null } }));
+
+  // Static SPA serving in production or when client/dist exists
+  const clientDist = path.resolve(__dirname, '../../client/dist');
+  if (fs.existsSync(clientDist)) {
+    app.use(express.static(clientDist));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) return next();
+      res.sendFile(path.join(clientDist, 'index.html'));
+    });
+  }
+
   app.use(errorHandler);
   return app;
 }

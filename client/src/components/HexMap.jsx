@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useTheme } from '../lib/state.jsx';
@@ -20,6 +20,30 @@ export default function HexMap({ features, picks = [], own = [], comps = [], rin
   const [offline, setOffline] = useState(false);
   const cbs = useRef({}); cbs.current = { onCellClick, onMapClick };
 
+  // Compute locality rank map for accurate H1, H2, H3 labels in every locality
+  const localityRankMap = useMemo(() => {
+    if (!features?.length) return new Map();
+    const byLoc = new Map();
+    for (const f of features) {
+      const loc = f.properties?.locality || 'Pune';
+      if (!byLoc.has(loc)) byLoc.set(loc, []);
+      byLoc.get(loc).push(f);
+    }
+    const rankMap = new Map();
+    for (const [_, cellList] of byLoc.entries()) {
+      cellList.sort((a, b) => {
+        if (a.properties?.eligible !== b.properties?.eligible) {
+          return a.properties?.eligible ? -1 : 1;
+        }
+        return (b.properties?.exp || 0) - (a.properties?.exp || 0);
+      });
+      cellList.forEach((cell, idx) => {
+        rankMap.set(cell.properties?.id, idx + 1);
+      });
+    }
+    return rankMap;
+  }, [features]);
+
   useEffect(() => {
     const m = L.map(el.current, { zoomControl: false, attributionControl: false, scrollWheelZoom: false, dragging: interactive, doubleClickZoom: interactive, preferCanvas: false })
       .setView(center || [18.555, 73.85], zoom);
@@ -36,7 +60,7 @@ export default function HexMap({ features, picks = [], own = [], comps = [], rin
     return () => { ro.disconnect(); m.stop(); m.off(); m.remove(); map.current = null; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { if (center && map.current) map.current.setView(center, zoom ?? map.current.getZoom(), { animate: false }); }, [center?.[0], center?.[1], zoom]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (center && map.current) map.current.setView(center, zoom ?? map.current.getZoom(), { animate: true }); }, [center?.[0], center?.[1], zoom]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // hex layer
   useEffect(() => {
@@ -56,7 +80,7 @@ export default function HexMap({ features, picks = [], own = [], comps = [], rin
       },
       onEachFeature: (f, layer) => {
         const p = f.properties;
-        const hNum = p.hIndex || p.rank || p.n || (p.id ? (((parseInt(String(p.id).slice(-4), 16) || 7) % 25) + 1) : 1);
+        const hNum = p.hIndex || localityRankMap.get(p.id) || p.rank || p.n || 1;
         const hQuery = `?h=${hNum}`;
         const locTitle = escapeHtml(p.locality || 'Location');
         const fullTitle = locTitle.startsWith('H') ? locTitle : `H${hNum} in ${locTitle}`;
@@ -67,7 +91,7 @@ export default function HexMap({ features, picks = [], own = [], comps = [], rin
       },
     }).addTo(g);
     if (fit === 'features' && map.current) map.current.fitBounds(gj.getBounds(), { padding: [10, 10], animate: false });
-  }, [features, theme, tiers, selected, dim, fit, popup]);
+  }, [features, localityRankMap, theme, tiers, selected, dim, fit, popup]);
 
   // markers
   useEffect(() => {

@@ -117,45 +117,63 @@ export default function Location() {
 
   const site = d.data?.site;
   const pick = picks.find((p) => p.cell === cellId);
-  const pickIndexInList = picks.findIndex((p) => p.cell === cellId);
+
+  // Compute all cells in this locality sorted by ML expected profit descending
+  const localityCells = useMemo(() => {
+    if (!hex.data?.features || !site?.locality) return [];
+    const loc = site.locality.trim().toLowerCase();
+    const matching = hex.data.features.filter((f) => {
+      const fLoc = (f.properties?.locality || '').trim().toLowerCase();
+      return fLoc === loc;
+    });
+    return matching.sort((a, b) => {
+      if (a.properties?.eligible !== b.properties?.eligible) {
+        return a.properties?.eligible ? -1 : 1;
+      }
+      return (b.properties?.exp || 0) - (a.properties?.exp || 0);
+    });
+  }, [hex.data?.features, site?.locality]);
+
+  const localityIndex = localityCells.findIndex((f) => f.properties?.id === cellId);
 
   let currentIndex = 0;
-  if (pickIndexInList !== -1) {
-    currentIndex = pickIndexInList;
+  if (localityIndex !== -1) {
+    currentIndex = localityIndex;
   } else if (hParam && !isNaN(Number(hParam))) {
     currentIndex = Math.max(0, Number(hParam) - 1);
   } else if (site?.rank) {
     currentIndex = Math.max(0, site.rank - 1);
   } else {
-    currentIndex = 0;
+    const pickIndexInList = picks.findIndex((p) => p.cell === cellId);
+    if (pickIndexInList !== -1) currentIndex = pickIndexInList;
   }
 
   const hexIndex = currentIndex + 1;
   const hexLabel = `H${hexIndex}`;
   const hexLocationName = `${hexLabel} in ${site?.locality || 'Location'}`;
 
-  // Forward and backward sequence states
-  const totalCount = picks.length > 0 ? picks.length : 8;
+  // Forward and backward sequence states strictly based on real locality ML cells
+  const totalCount = localityCells.length > 0 ? localityCells.length : (picks.length > 0 ? picks.length : 1);
   const isPrevDisabled = currentIndex <= 0;
-  const isNextDisabled = currentIndex >= totalCount - 1 || (picks.length > 0 && currentIndex >= picks.length - 1);
+  const isNextDisabled = currentIndex >= totalCount - 1;
 
   const handlePrevLocation = () => {
     if (isPrevDisabled) return;
     const prevIdx = currentIndex - 1;
-    if (picks[prevIdx]) {
+    if (localityCells[prevIdx]?.properties?.id) {
+      nav(`/location/${localityCells[prevIdx].properties.id}?h=${prevIdx + 1}`);
+    } else if (picks[prevIdx]?.cell) {
       nav(`/location/${picks[prevIdx].cell}?h=${prevIdx + 1}`);
-    } else {
-      nav(`/location/${cellId}?h=${prevIdx + 1}`);
     }
   };
 
   const handleNextLocation = () => {
     if (isNextDisabled) return;
     const nextIdx = currentIndex + 1;
-    if (picks[nextIdx]) {
+    if (localityCells[nextIdx]?.properties?.id) {
+      nav(`/location/${localityCells[nextIdx].properties.id}?h=${nextIdx + 1}`);
+    } else if (picks[nextIdx]?.cell) {
       nav(`/location/${picks[nextIdx].cell}?h=${nextIdx + 1}`);
-    } else {
-      nav(`/location/${cellId}?h=${nextIdx + 1}`);
     }
   };
 
@@ -239,9 +257,9 @@ export default function Location() {
               <span className="tag acc" style={{ fontWeight: 700, fontSize: 13, padding: '4px 10px', borderRadius: 999 }}>
                 {hexLabel} in {site?.locality || 'Location'}
               </span>
-              {picks.length > 0 && (
+              {totalCount > 1 && (
                 <span className="s12 muted">
-                  Sequence {currentIndex + 1} of {picks.length}
+                  Sequence {currentIndex + 1} of {totalCount}
                 </span>
               )}
             </div>
@@ -254,7 +272,7 @@ export default function Location() {
                 return Math.abs(la - site.lat) < 0.04 && Math.abs(lo - site.lon) < 0.045;
               })}
               selected={cellId}
-              picks={[{ lat: site.lat, lon: site.lon, n: hexIndex }]}
+              picks={[{ lat: site.lat, lon: site.lon, n: hexIndex, label: hexLabel }]}
               rings={[{ lat: site.lat, lon: site.lon, km: site.catchment.km }]}
               comps={comps}
               center={[site.lat, site.lon]}
