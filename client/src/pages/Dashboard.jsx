@@ -122,7 +122,6 @@ const SAMPLE_SHOPS = [
     id: 'sample_shop_2',
     name: 'Mainland China Restaurant',
     category: 'restaurant',
-    relation: 'Anchor',
     distKm: 0.55,
     cell: '886088508dfffff',
     lat: 18.562,
@@ -132,7 +131,6 @@ const SAMPLE_SHOPS = [
     id: 'sample_shop_3',
     name: 'Apollo Pharmacy 24/7',
     category: 'pharmacy',
-    relation: 'Anchor',
     distKm: 0.78,
     cell: '8860884249fffff',
     lat: 18.557,
@@ -142,7 +140,6 @@ const SAMPLE_SHOPS = [
     id: 'sample_shop_4',
     name: 'Blue Tokai Coffee Roasters',
     category: 'cafe',
-    relation: 'Anchor',
     distKm: 0.95,
     cell: '8860884257fffff',
     lat: 18.564,
@@ -162,7 +159,6 @@ const SAMPLE_SHOPS = [
     id: 'sample_shop_6',
     name: 'Wellness Forever Chemist',
     category: 'pharmacy',
-    relation: 'Anchor',
     distKm: 1.35,
     cell: '886088420bfffff',
     lat: 18.566,
@@ -172,7 +168,6 @@ const SAMPLE_SHOPS = [
     id: 'sample_shop_7',
     name: 'Fabindia Apparel & Lifestyle',
     category: 'apparel',
-    relation: 'Anchor',
     distKm: 1.62,
     cell: '8860884217fffff',
     lat: 18.553,
@@ -182,7 +177,6 @@ const SAMPLE_SHOPS = [
     id: 'sample_shop_8',
     name: 'Third Wave Coffee',
     category: 'cafe',
-    relation: 'Anchor',
     distKm: 1.85,
     cell: '8860884231fffff',
     lat: 18.568,
@@ -1332,7 +1326,7 @@ export default function Dashboard() {
         <div className="row sb wrap g8">
           <div className="col">
             <h2 className="h3">Shops around {locality?.name || 'Pune & PCMC'}</h2>
-            <span className="s13 muted">Competitors, complementary anchors and your stores within 2 km · Click any card to inspect location</span>
+            <span className="s13 muted">Competitors, retail businesses and your stores within 2 km · Click any card to inspect location</span>
           </div>
           <div className="row g8 wrap">
             {tagChips.map(([k, t]) => (

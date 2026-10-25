@@ -90,7 +90,7 @@ export default function CompetitorAnalysisModal({ open, onClose, shop, activeCat
               </span>
             ) : (
               <span className="tag info b" style={{ padding: '6px 12px', fontSize: 13 }}>
-                <Icon n="building-line" s={14} /> General Area Anchor
+                <Icon n="building-line" s={14} /> General Area Business
               </span>
             )}
           </div>
@@ -195,7 +195,7 @@ export default function CompetitorAnalysisModal({ open, onClose, shop, activeCat
         {!loading && !isInCategory && (
           <>
             <Banner tone="info" icon="information-line">
-              General Retail Anchor — Operates in <b>{shopCatInfo.name}</b> (different vertical from active <b>{currentCatInfo.name}</b>). Only general demographic and land-use data is shown; category-specific revenue distribution and competition SHAP drivers do not apply.
+              General Retail Business — Operates in <b>{shopCatInfo.name}</b> (different vertical from active <b>{currentCatInfo.name}</b>). Only general demographic and land-use data is shown; category-specific revenue distribution and competition SHAP drivers do not apply.
             </Banner>
 
             <div className="grid3" style={{ gap: 12 }}>
@@ -222,10 +222,10 @@ export default function CompetitorAnalysisModal({ open, onClose, shop, activeCat
             <div className="card pad16 col g8" style={{ background: 'var(--surface2)' }}>
               <div className="row g8 ac">
                 <Icon n="compass-3-line" s={16} c="var(--accent2)" />
-                <span className="b s13">Anchor Synergies for {currentCatInfo.name}</span>
+                <span className="b s13">Commercial Synergies for {currentCatInfo.name}</span>
               </div>
               <p className="s13 muted" style={{ lineHeight: 1.5, margin: 0 }}>
-                This store acts as an adjacent commercial anchor generating non-competing customer footfall ({general.anchors?.schools || 2} schools and {general.anchors?.offices || 3} offices nearby) that can synergize with your {currentCatInfo.name} site.
+                This store acts as an adjacent commercial business generating non-competing customer footfall ({general.anchors?.schools || 2} schools and {general.anchors?.offices || 3} offices nearby) that can synergize with your {currentCatInfo.name} site.
               </p>
             </div>
 

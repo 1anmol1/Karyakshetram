@@ -21,7 +21,7 @@ export function PickCard({ p, i, selected, compared, onCompare, onClick }) {
   );
 }
 
-const REL = { Competitor: 'bad', 'Your store': 'ink', Anchor: 'info' };
+const REL = { Competitor: 'bad', 'Your store': 'ink' };
 
 const BUSINESS_CATEGORIES = {
   restaurant: { label: 'Restaurant', icon: 'restaurant-2-line', tone: 'warn' },
@@ -76,7 +76,9 @@ export function ShopCard({ s, i, square, catInfo, saved, onSave, onClick }) {
           <span className={`tag ${cat.tone}`} title={`Category: ${cat.label}`}>
             <Icon n={cat.icon} s={12} />{cat.label}
           </span>
-          <span className={`tag ${REL[s.relation] || ''}`}>{s.relation}</span>
+          {s.relation && s.relation !== 'Anchor' && (
+            <span className={`tag ${REL[s.relation] || ''}`}>{s.relation}</span>
+          )}
           <span className="muted" style={{ marginLeft: 'auto' }}>{km(s.distKm)}</span>
         </div>
       </div>
