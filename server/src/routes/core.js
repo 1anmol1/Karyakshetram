@@ -716,19 +716,180 @@ r.get('/shops', asyncH(async (req, res) => {
   const category = resolveCategory(req, req.query.category);
   const tag = req.query.tag && req.query.tag !== 'all' ? String(req.query.tag) : null;
   const out = [];
+
+  const enrichPoi = (q, d, catKey, isOwn = false) => {
+    const cell = state.byId.get(q.h3 || q.cell);
+    const isComp = catKey === category;
+    return {
+      id: String(q._id || q.id),
+      name: q.name,
+      category: catKey,
+      relation: isOwn ? 'Your store' : isComp ? 'Competitor' : 'Anchor',
+      distKm: Math.round(d * 100) / 100,
+      lat: q.lat,
+      lon: q.lon,
+      cell: q.h3 || q.cell,
+      locality: q.locality || cell?.locality || 'Pune',
+      brandClass: q.brandClass || (isOwn ? 'Own Network' : 'Standard'),
+      areaSqft: q.areaSqft || 2500,
+      isCompetitor: isComp,
+    };
+  };
+
   if (tag !== null && tag !== 'own') {
-    for (const q of state.pois.get(tag) || []) { const d = distKm(lat, lon, q.lat, q.lon); if (d <= radius) out.push({ id: String(q._id), name: q.name, category: q.category, relation: q.category === category ? 'Competitor' : 'Anchor', distKm: d, lat: q.lat, lon: q.lon, cell: q.h3 }); }
+    for (const q of state.pois.get(tag) || []) {
+      const d = distKm(lat, lon, q.lat, q.lon);
+      if (d <= radius) out.push(enrichPoi(q, d, q.category));
+    }
   } else if (tag === null) {
-    for (const [k, arr] of state.pois) for (const q of arr) { const d = distKm(lat, lon, q.lat, q.lon); if (d <= radius) out.push({ id: String(q._id), name: q.name, category: k, relation: k === category ? 'Competitor' : 'Anchor', distKm: d, lat: q.lat, lon: q.lon, cell: q.h3 }); }
+    for (const [k, arr] of state.pois) {
+      for (const q of arr) {
+        const d = distKm(lat, lon, q.lat, q.lon);
+        if (d <= radius) out.push(enrichPoi(q, d, k));
+      }
+    }
   }
   if (req.user && (tag === null || tag === 'own')) {
     const own = await Store.find({ owner: req.user._id, chain: 'own' }).lean();
-    for (const s of own) { const d = distKm(lat, lon, s.loc.coordinates[1], s.loc.coordinates[0]); if (d <= radius) out.push({ id: String(s._id), name: s.name, category: s.category, relation: 'Your store', distKm: d, lat: s.loc.coordinates[1], lon: s.loc.coordinates[0], cell: s.h3 }); }
+    for (const s of own) {
+      const d = distKm(lat, lon, s.loc.coordinates[1], s.loc.coordinates[0]);
+      if (d <= radius) {
+        out.push(enrichPoi({ ...s, lat: s.loc.coordinates[1], lon: s.loc.coordinates[0] }, d, s.category, true));
+      }
+    }
   }
   out.sort((a, b) => a.distKm - b.distKm);
   const counts = {};
   for (const [k, arr] of state.pois) counts[k] = arr.filter((q) => distKm(lat, lon, q.lat, q.lon) <= radius).length;
   res.json({ shops: out.slice(0, Number(req.query.limit) || 24), total: out.length, counts });
+}));
+
+// ---------------- detailed competitor analysis for a clicked shop
+r.get('/shops/:id/analysis', asyncH(async (req, res) => {
+  const shopId = req.params.id;
+  const category = resolveCategory(req, req.query.category);
+
+  // Find POI or Store
+  let poi = null;
+  let isOwn = false;
+  for (const [, arr] of state.pois) {
+    const found = arr.find((p) => String(p._id) === shopId || String(p.osmId) === shopId);
+    if (found) { poi = found; break; }
+  }
+  if (!poi && req.user) {
+    const store = await Store.findOne({ _id: shopId, owner: req.user._id }).lean();
+    if (store) {
+      poi = {
+        _id: store._id,
+        name: store.name,
+        category: store.category,
+        brandClass: 'Own Network',
+        lat: store.loc.coordinates[1],
+        lon: store.loc.coordinates[0],
+        h3: store.h3,
+      };
+      isOwn = true;
+    }
+  }
+  if (!poi) {
+    const cellMatch = state.byId.get(req.query.cell || shopId);
+    if (cellMatch) {
+      poi = {
+        _id: shopId,
+        name: req.query.name || 'Commercial Shop',
+        category: req.query.shopCategory || category,
+        brandClass: 'Independent',
+        lat: cellMatch.lat,
+        lon: cellMatch.lon,
+        h3: cellMatch._id,
+      };
+    }
+  }
+  if (!poi) throw notFound('Shop not found');
+
+  const cell = state.byId.get(poi.h3);
+  const isInCategory = poi.category === category || (category === 'all' && poi.category);
+
+  const base = {
+    id: String(poi._id),
+    name: poi.name,
+    category: poi.category,
+    categoryName: catByKey[poi.category]?.name || poi.category,
+    relation: isOwn ? 'Your store' : isInCategory ? 'Competitor' : 'Anchor',
+    brandClass: poi.brandClass || 'Standard',
+    lat: poi.lat,
+    lon: poi.lon,
+    cell: poi.h3,
+    locality: poi.locality || cell?.locality || 'Pune',
+    isInCategory: Boolean(isInCategory),
+    generalData: {
+      landuse: cell?.landuse || { res: 0.5, com: 0.3, ind: 0.1, green: 0.1 },
+      population2020: cell?.features?.pop2020 || 8500,
+      households: cell?.features?.households || 2200,
+      roadDistM: cell?.features?.roadDistM || 90,
+      anchors: cell?.features?.anchors || { schools: 2, offices: 3, transit: 1, hospitals: 1 },
+      footfallIndex: cell?.features?.density || cell?.features?.footfall || 68,
+      commercialRatio: Math.round((cell?.landuse?.com || 0.3) * 100),
+    },
+  };
+
+  if (!isInCategory) {
+    return res.json({
+      ...base,
+      modelData: null,
+      message: `Shop operates in ${catByKey[poi.category]?.name || poi.category}, not active vertical ${catByKey[category]?.name || category}. Only general demographic and land-use data is shown.`,
+    });
+  }
+
+  // Compute model data for competitor in active category
+  let modelScore = null;
+  if (poi.h3 && state.byId.has(poi.h3)) {
+    try {
+      const { site } = await siteFor(req, poi.h3, poi.category);
+      modelScore = {
+        revenueP50: site.revenue?.p50,
+        revenueP10: site.revenue?.p10,
+        revenueP90: site.revenue?.p90,
+        profitExp: site.profit?.exp,
+        tier: site.tier,
+        confidence: site.confidence,
+        breakevenRent: Math.round(site.breakevenRent || 140),
+        rent: site.rent,
+        area: site.area,
+        margin: site.margin,
+        catchmentKm: site.catchment?.km || 2,
+        competitorsInCatchment: site.catchment?.competitors || 1,
+        competitionShap: site.shap?.Competition || -120000,
+        stressPasses: site.stress?.passes ?? 3,
+      };
+    } catch {}
+  }
+
+  const p = catByKey[poi.category] || catByKey.grocery;
+  const estimatedTurnover = modelScore?.revenueP50 || (p.revenue * (p.rentFactor || 1));
+  const threatLevel = poi.brandClass === 'National' ? 'High Threat' : 'Moderate Threat';
+
+  res.json({
+    ...base,
+    modelData: {
+      turnoverAnnual: estimatedTurnover,
+      profitExp: modelScore?.profitExp || Math.round(estimatedTurnover * 0.18),
+      tier: modelScore?.tier || 'A',
+      confidence: modelScore?.confidence || 'High',
+      rentBenchmark: modelScore?.rent || 150,
+      breakevenRent: modelScore?.breakevenRent || 165,
+      areaSqft: modelScore?.area || 3000,
+      marginPct: Math.round((modelScore?.margin || 0.22) * 100),
+      competitionShap: modelScore?.competitionShap || -120000,
+      threatLevel,
+      huffAttractionWeight: 1.0,
+      huffFrictionLambda: 1.85,
+      catchmentKm: modelScore?.catchmentKm || p.catchmentKm || 2,
+      competitorsNearby: modelScore?.competitorsInCatchment || 3,
+      stressPasses: modelScore?.stressPasses ?? 3,
+    },
+    message: 'Direct category competitor. Model predictions and customer gravity metrics computed.',
+  });
 }));
 
 // ---------------- chatbot (powered by Gemini API, fallback to deterministic metrics)

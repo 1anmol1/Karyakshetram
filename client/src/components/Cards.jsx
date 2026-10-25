@@ -56,16 +56,22 @@ function resolveCategoryTag(catKey, catInfo) {
   return { label, icon: 'store-2-line', tone: 'acc' };
 }
 
-export function ShopCard({ s, i, square, catInfo, saved, onSave }) {
+export function ShopCard({ s, i, square, catInfo, saved, onSave, onClick }) {
   const nav = useNavigate();
   const cat = resolveCategoryTag(s.category, catInfo);
   return (
-    <div className={`shop ${square ? 'sq' : ''}`} onClick={() => s.cell && nav(`/location/${s.cell}`)} role="link" tabIndex={0}>
+    <div
+      className={`shop ${square ? 'sq' : ''}`}
+      onClick={() => (onClick ? onClick(s) : s.cell && nav(`/location/${s.cell}`))}
+      role="button"
+      tabIndex={0}
+      style={{ cursor: 'pointer' }}
+    >
       <div className="ph"><Photo category={s.category} seed={i + 3} h={square ? 150 : 120} />
         <button className={`save ${saved ? 'on' : ''}`} onClick={(e) => { e.stopPropagation(); onSave?.(s); }} aria-label={saved ? 'Saved' : 'Save location'}><Icon n={saved ? 'bookmark-fill' : 'bookmark-line'} s={14} c={saved ? 'var(--accent)' : undefined} />{saved ? 'Saved' : 'Save'}</button>
       </div>
       <div className="pad12 col g6">
-        <div className="row sb ac"><span className="b s14 ellipsis" title={s.name}>{s.name}</span><Icon n="arrow-right-up-line" s={16} c="var(--muted)" /></div>
+        <div className="row sb ac"><span className="b s14 ellipsis" title={s.name}>{s.name}</span><Icon n="eye-line" s={16} c="var(--muted)" /></div>
         <div className="row g6 wrap ac s12">
           <span className={`tag ${cat.tone}`} title={`Category: ${cat.label}`}>
             <Icon n={cat.icon} s={12} />{cat.label}

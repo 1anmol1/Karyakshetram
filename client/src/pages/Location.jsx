@@ -7,6 +7,7 @@ import { Header, Footer, SystemBanners } from '../components/Layout.jsx';
 import { Icon, Tier, Conf, Sim, Kv, RangeBar, Tabs, Field, Modal, Skel, ErrorBox, Photo, Banner, AiStreamingText } from '../components/ui.jsx';
 import { SimilarRow } from '../components/Cards.jsx';
 import HexMap from '../components/HexMap.jsx';
+import CompetitorAnalysisModal from '../components/CompetitorModal.jsx';
 
 const STRESS_ORDER = ['competitor500m', 'rentUp25', 'demandDown15', 'marginDown2'];
 const LANDUSE = [['res', 'Residential'], ['com', 'Commercial'], ['ind', 'Industrial'], ['green', 'Green'], ['water', 'Water']];
@@ -53,6 +54,7 @@ export default function Location() {
   const [savedId, setSavedId] = useState(null);
   const [modal, setModal] = useState(null);
   const [rent, setRent] = useState(null);
+  const [selectedComp, setSelectedComp] = useState(null);
 
   // When locality changes from the header picker or anywhere, update immediately to H1 in that location
   const prevLocalityRef = useRef(locality?.name);
@@ -316,7 +318,26 @@ export default function Location() {
                 <Kv k="Data coverage" v={site.coverage.toFixed(2)} />
               </div></div>
             <div className="card pad20 col g8" style={{ width: 340 }}><div className="row sb"><div className="h4">Competitors in catchment</div><span className="tag">{site.catchment.competitors}</span></div>
-              {comps.length ? comps.slice(0, 10).map((c) => <div key={c.id} className="row sb s13" style={{ padding: '6px 0', borderTop: '1px solid var(--line)' }}><span>{c.name}</span><span className="muted">{km(c.distKm)}</span></div>) : <span className="s13 muted">No competitors within the catchment. Check the empty-market flag before treating this as an opportunity.</span>}</div>
+              {comps.length ? comps.slice(0, 10).map((c) => (
+                <div
+                  key={c.id}
+                  className="row sb ac s13"
+                  style={{ padding: '8px 6px', borderTop: '1px solid var(--line)', cursor: 'pointer', borderRadius: 8 }}
+                  onClick={() => setSelectedComp({ ...c, category, relation: 'Competitor', cell: cellId, locality: site.locality })}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="row g6 ac">
+                    <Icon n="store-2-line" s={14} c="var(--accent)" />
+                    <span className="b">{c.name}</span>
+                    {c.brandClass && <span className="tag sm">{c.brandClass}</span>}
+                  </div>
+                  <div className="row g4 ac">
+                    <span className="muted">{km(c.distKm)}</span>
+                    <Icon n="arrow-right-s-line" s={14} c="var(--muted)" />
+                  </div>
+                </div>
+              )) : <span className="s13 muted">No competitors within the catchment. Check the empty-market flag before treating this as an opportunity.</span>}</div>
           </div>}
           {tab === 'Money' && <div className="row as g16 stack-md">
             <div className="card pad20 col g10 f1"><div className="h4">Yearly P&amp;L at P50</div>
@@ -363,6 +384,7 @@ export default function Location() {
       <FeedbackModal open={modal === 'down'} onClose={() => setModal(null)} cellId={cellId} category={category} />
       <VisitModal open={modal === 'visit'} onClose={() => setModal(null)} cellId={cellId} category={category} onSaved={() => { setModal(null); d.refetch(); }} />
       <OpenedModal open={modal === 'opened'} onClose={() => setModal(null)} cellId={cellId} category={category} site={site} user={user} />
+      <CompetitorAnalysisModal open={!!selectedComp} onClose={() => setSelectedComp(null)} shop={selectedComp} activeCategory={category} />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { inr, pct, downloadCsv, n, cleanAiText } from '../lib/format.js';
 import { Header, Footer, SystemBanners } from '../components/Layout.jsx';
 import { Icon, Collapse, Tier, Banner, Skel, ErrorBox, EmptyState, Seg, Modal, AiStreamingText } from '../components/ui.jsx';
 import { PickCard, ShopCard } from '../components/Cards.jsx';
+import CompetitorAnalysisModal from '../components/CompetitorModal.jsx';
 import HexMap from '../components/HexMap.jsx';
 
 const SAMPLE_PICKS = [
@@ -247,6 +248,7 @@ export default function Dashboard() {
   });
   const [filterOpen, setFilterOpen] = useState(false);
   const [rec, setRec] = useState({ loading: true });
+  const [selectedShop, setSelectedShop] = useState(null);
   // debounce slider/chip changes so dragging a slider sends one request, not dozens
   const [qf, setQf] = useState(filters);
   useEffect(() => {
@@ -1366,11 +1368,20 @@ export default function Dashboard() {
                 catInfo={categories.find((c) => c.key === s.category)}
                 saved={Boolean(s && (saved.has(s.id) || saved.has(s.cell)))}
                 onSave={() => save(s, s.name, s.category)}
+                onClick={(shop) => setSelectedShop(shop)}
               />
             ))
           )}
         </div>
       </section>
+
+      {/* Competitor & Shop Analysis Modal */}
+      <CompetitorAnalysisModal
+        open={!!selectedShop}
+        onClose={() => setSelectedShop(null)}
+        shop={selectedShop}
+        activeCategory={category}
+      />
 
       {/* Quick Add Business Modal */}
       <Modal open={addBizOpen} onClose={() => setAddBizOpen(false)} title="Add Your Business / Store">
