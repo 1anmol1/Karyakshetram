@@ -56,10 +56,14 @@ export default function HexMap({ features, picks = [], own = [], comps = [], rin
       },
       onEachFeature: (f, layer) => {
         const p = f.properties;
-        if (popup) layer.bindPopup(() => `<div style="min-width:190px"><div style="font-weight:700;font-size:14px;margin-bottom:4px">${escapeHtml(p.locality)}</div>${p.eligible
+        const hNum = p.hIndex || p.rank || p.n || (p.id ? (((parseInt(String(p.id).slice(-4), 16) || 7) % 25) + 1) : 1);
+        const hQuery = `?h=${hNum}`;
+        const locTitle = escapeHtml(p.locality || 'Location');
+        const fullTitle = locTitle.startsWith('H') ? locTitle : `H${hNum} in ${locTitle}`;
+        if (popup) layer.bindPopup(() => `<div style="min-width:190px"><div style="font-weight:700;font-size:14px;margin-bottom:4px">${fullTitle}</div>${p.eligible
           ? `<div>Tier <b>${p.tier}</b> · ${escapeHtml(p.confidence)} confidence</div><div>Expected profit <b>${inr(p.exp)}</b>/yr</div><div>Rent ₹${p.rent}/sq ft</div>`
-          : `<div style="color:${css('--bad')}">Not suitable</div><div style="font-size:12px">${p.reasons.map(escapeHtml).join('<br>')}</div>`}<a href="/location/${p.id}" data-cell="${p.id}" style="display:inline-block;margin-top:8px;font-weight:700;color:${css('--accent')}">${p.eligible ? 'Open location →' : 'See alternatives →'}</a></div>`);
-        layer.on('click', (e) => { L.DomEvent.stopPropagation(e); cbs.current.onCellClick?.(f); });
+          : `<div style="color:${css('--bad')}">Not suitable</div><div style="font-size:12px">${p.reasons.map(escapeHtml).join('<br>')}</div>`}<a href="/location/${p.id}${hQuery}" data-cell="${p.id}" data-h="${hNum}" style="display:inline-block;margin-top:8px;font-weight:700;color:${css('--accent')}">${p.eligible ? `Open Location H${hNum} →` : 'See alternatives →'}</a></div>`);
+        layer.on('click', (e) => { L.DomEvent.stopPropagation(e); cbs.current.onCellClick?.({ ...f, properties: { ...p, hIndex: hNum } }); });
       },
     }).addTo(g);
     if (fit === 'features' && map.current) map.current.fitBounds(gj.getBounds(), { padding: [10, 10], animate: false });

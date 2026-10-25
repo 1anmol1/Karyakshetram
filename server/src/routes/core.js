@@ -62,8 +62,11 @@ r.get('/meta', asyncH(async (req, res) => {
 
 r.get('/eval', asyncH(async (req, res) => {
   const category = resolveCategory(req, req.query.category);
-  const m = await MlModel.findOne({ version: config.modelVersion, category }).lean();
-  const p = catByKey[category];
+  let m = await MlModel.findOne({ version: config.modelVersion, category }).lean();
+  if (!m) {
+    m = await MlModel.findOne({ version: config.modelVersion }).lean();
+  }
+  const p = catByKey[category] || catByKey.grocery;
   res.json({
     category, model: m, targets: [
       { id: 'KPI-2', metric: 'Rank quality (Spearman ρ)', target: '≥ 0.60' }, { id: 'KPI-1', metric: 'Revenue accuracy (R²)', target: '≥ 0.50' },
@@ -324,8 +327,29 @@ r.post('/cannibalisation', requireAuth, validate(z.object({
     ownStoresCategory: same.length,
     estimatedCount: same.filter((s) => s.estimated).length,
   };
-  if (!all.length) return res.json({ ...base, status: 'no_stores' });
-  if (!same.length && !req.body.crossCategory) {
+  let isBenchmark = false;
+  let storesToUse = same.length ? same : mappedAll;
+  if (!all.length) {
+    const simStores = await Store.find({ category, chain: 'sim' }).limit(6).lean();
+    if (simStores.length) {
+      storesToUse = simStores.map((s) => ({
+        id: String(s._id),
+        name: s.name.replace(/^Sim\s+/i, ''),
+        lat: s.loc.coordinates[1],
+        lon: s.loc.coordinates[0],
+        revenue: s.annualRevenue || 14000000,
+        area: undefined,
+        estimated: true,
+        category: s.category,
+      }));
+      isBenchmark = true;
+      base.ownStoresTotal = storesToUse.length;
+      base.ownStoresCategory = storesToUse.length;
+      base.isBenchmark = true;
+    } else {
+      return res.json({ ...base, status: 'no_stores' });
+    }
+  } else if (!same.length && !req.body.crossCategory) {
     return res.json({
       ...base,
       status: 'different_category',
@@ -333,8 +357,7 @@ r.post('/cannibalisation', requireAuth, validate(z.object({
       otherCategoryKeys: [...new Set(all.map((s) => s.category))],
     });
   }
-  const storesToUse = same.length ? same : mappedAll;
-  const isCross = same.length === 0 && all.length > 0;
+  const isCross = !isBenchmark && same.length === 0 && all.length > 0;
   base.ownStoresCategory = storesToUse.length;
   base.estimatedCount = storesToUse.filter((s) => s.estimated).length;
   base.crossCategoryNotice = isCross;

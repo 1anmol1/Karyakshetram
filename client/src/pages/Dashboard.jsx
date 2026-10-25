@@ -445,13 +445,13 @@ export default function Dashboard() {
 
   const pins = displayPicks
     .filter((p) => !p.empty)
-    .map((p) => ({
+    .map((p, idx) => ({
       lat: p.lat,
       lon: p.lon,
-      n: displayPicks.indexOf(p) + 1,
-      label: displayPicks.indexOf(p) === 0 ? p.label : '',
+      n: idx + 1,
+      label: idx === 0 ? p.label : '',
       title: `${p.label}: ${p.locality}`,
-      onClick: () => nav(`/location/${p.cell}`),
+      onClick: () => nav(`/location/${p.cell}?h=${idx + 1}`),
     }));
 
   const own = myStores
@@ -463,14 +463,26 @@ export default function Dashboard() {
 
   const featureView = useMemo(() => {
     if (!cells?.features) return null;
-    return cells.features.filter(
-      (f) =>
-        !f.properties.eligible ||
-        (filters.conf.has(f.properties.confidence) &&
-          !(filters.hideEmpty && f.properties.flags?.includes('EMPTY_MARKET')) &&
-          f.properties.rent <= filters.maxRent)
-    );
-  }, [cells, filters]);
+    return cells.features
+      .filter(
+        (f) =>
+          !f.properties.eligible ||
+          (filters.conf.has(f.properties.confidence) &&
+            !(filters.hideEmpty && f.properties.flags?.includes('EMPTY_MARKET')) &&
+            f.properties.rent <= filters.maxRent)
+      )
+      .map((f) => {
+        const pickIdx = displayPicks.findIndex((p) => p.cell === f.properties.id);
+        const hIndex = pickIdx >= 0 ? pickIdx + 1 : (((parseInt((f.properties.id || '').slice(-4), 16) || 7) % 18) + 1);
+        return {
+          ...f,
+          properties: {
+            ...f.properties,
+            hIndex,
+          },
+        };
+      });
+  }, [cells, filters, displayPicks]);
 
   const save = async (shopOrCell, name, catKey) => {
     try {
@@ -1084,7 +1096,7 @@ export default function Dashboard() {
                         const breakeven = Math.round(p.breakevenRent || p.rent * 1.35);
                         const headroom = breakeven - p.rent;
                         return (
-                          <tr key={p.cell || idx} className="click" onClick={() => nav(`/location/${p.cell}`)}>
+                          <tr key={p.cell || idx} className="click" onClick={() => nav(`/location/${p.cell}?h=${idx + 1}`)}>
                             <td className="muted b">{idx + 1}</td>
                             <td><span className="tag acc b">{p.label}</span></td>
                             <td><Tier t={p.tier} /></td>
@@ -1106,7 +1118,7 @@ export default function Dashboard() {
                                 className="btn out sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  nav(`/location/${p.cell}`);
+                                  nav(`/location/${p.cell}?h=${idx + 1}`);
                                 }}
                               >
                                 View Site <Icon n="arrow-right-s-line" s={14} />
@@ -1289,7 +1301,7 @@ export default function Dashboard() {
                 selected={i === 0}
                 compared={compare.includes(p.cell)}
                 onCompare={() => onCompare(p.cell)}
-                onClick={() => nav(`/location/${p.cell}`)}
+                onClick={() => nav(`/location/${p.cell}?h=${i + 1}`)}
               />
             ))}
           </div>

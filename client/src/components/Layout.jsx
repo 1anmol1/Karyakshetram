@@ -95,8 +95,14 @@ export function Header({ back, showCategory = true, crumb }) {
   const [menu, setMenu] = useState(false);
   return (<>
     <header className="hdr">
-      <div className="hleft">
-        {back && <button className="iconbtn" onClick={() => (window.history.length > 2 ? nav(-1) : nav('/app'))} aria-label="Back"><Icon n="arrow-left-line" /></button>}
+      <div className="hleft" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {back ? (
+            <button className="iconbtn" onClick={() => (window.history.length > 2 ? nav(-1) : nav('/app'))} aria-label="Back">
+              <Icon n="arrow-left-line" />
+            </button>
+          ) : null}
+        </div>
         {showCategory && user && <CategoryPicker />}
         {crumb && <span className="s13 muted hide-sm">{crumb}</span>}
       </div>
@@ -144,7 +150,14 @@ export function AppShell() {
   const { expired, setExpired } = useAuth();
   const loc = useLocation();
   useEffect(() => {
-    const h = (e) => { const a = e.target.closest?.('a[data-cell]'); if (a) { e.preventDefault(); nav(`/location/${a.dataset.cell}`); } };
+    const h = (e) => {
+      const a = e.target.closest?.('a[data-cell]');
+      if (a) {
+        e.preventDefault();
+        const hVal = a.dataset.h ? `?h=${a.dataset.h}` : '';
+        nav(`/location/${a.dataset.cell}${hVal}`);
+      }
+    };
     document.addEventListener('click', h); return () => document.removeEventListener('click', h);
   }, [nav]);
   useEffect(() => { if (expired) { setExpired(false); nav(`/login?expired=1&next=${encodeURIComponent(loc.pathname + loc.search)}`); } }, [expired]); // eslint-disable-line react-hooks/exhaustive-deps

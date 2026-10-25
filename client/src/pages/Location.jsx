@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, fieldErrors } from '../lib/api.js';
 import { useApp, useAuth, useToast, useApi } from '../lib/state.jsx';
 import { inr, pct, km, n, parseNum } from '../lib/format.js';
@@ -13,6 +13,8 @@ const LANDUSE = [['res', 'Residential'], ['com', 'Commercial'], ['ind', 'Industr
 
 export default function Location() {
   const { cellId } = useParams();
+  const [searchParams] = useSearchParams();
+  const hParam = searchParams.get('h');
   const { category, catInfo, picks, compare, toggleCompare } = useApp();
   const { user } = useAuth();
   const toast = useToast();
@@ -33,7 +35,11 @@ export default function Location() {
 
   const site = d.data?.site;
   const pick = picks.find((p) => p.cell === cellId);
-  const hexIndex = pick ? picks.indexOf(pick) + 1 : site?.rank || (((parseInt((site?.cell || cellId).slice(-4), 16) || 7) % 12) + 1);
+  const hexIndex = (hParam && !isNaN(Number(hParam)))
+    ? Number(hParam)
+    : pick
+    ? picks.indexOf(pick) + 1
+    : site?.rank || (((parseInt((site?.cell || cellId).slice(-4), 16) || 7) % 15) + 1);
   const hexLabel = `H${hexIndex}`;
   const hexLocationName = `${hexLabel} in ${site?.locality || 'Location'}`;
   const shareUrl = window.location.href;

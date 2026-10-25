@@ -225,6 +225,11 @@ export default function Cannibalisation() {
 
         {res && site && (
           <>
+            {r.isBenchmark && (
+              <Banner tone="info" icon="information-line">
+                Simulating cannibalisation against category benchmark outlets based on active ML model output. Add your custom stores under Business to evaluate your personal footprint.
+              </Banner>
+            )}
             {r.crossCategoryNotice && (
               <Banner tone="info" icon="information-line">
                 Evaluating customer gravity against your total network of {r.ownStoresCategory} registered store{r.ownStoresCategory > 1 ? 's' : ''}.
