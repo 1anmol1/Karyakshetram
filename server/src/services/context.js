@@ -43,4 +43,4 @@ export function snap(lat, lon) {
   return bd <= 1.2 ? best : null;
 }
 
-export function siteName(s) { return `${s.locality} · ${s.cell.slice(-6, -1).toUpperCase()}`; }
+export function siteName(s) { return s?.locality || 'Location'; }

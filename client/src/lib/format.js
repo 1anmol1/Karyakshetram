@@ -15,9 +15,19 @@ export const n = (v) => (v == null ? '—' : Math.round(v).toLocaleString('en-IN
 export const signed = (v) => (v > 0 ? '+' : '') + inr(v);
 export const parseNum = (s) => { if (s === '' || s == null) return null; const x = Number(String(s).replace(/[,₹\s]/g, '')); return Number.isFinite(x) ? x : NaN; };
 export const shortCell = (id) => (id ? id.slice(-7, -3).toUpperCase() : '');
-export const siteTitle = (s) => (s ? `${s.locality} · Cell ${shortCell(s.cell)}` : '');
+export const siteTitle = (s) => (s ? (s.locality || 'Location') : '');
 export const ROLE_LABEL = { expansion_manager: 'Expansion manager', finance_analyst: 'Finance / real-estate analyst', regional_head: 'Regional head (approver)', independent_owner: 'Independent owner' };
 export const initials = (name = '') => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || 'K';
+
+export function cleanAiText(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/\(?\bCell\s+8[0-9a-f]{14}\b\)?/gi, '')
+    .replace(/\(Cell\s*8[0-9a-f]{14}\)/gi, '')
+    .replace(/\b8[0-9a-f]{14}\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
 
 export function downloadCsv(filename, rows) {
   if (!rows.length) return;

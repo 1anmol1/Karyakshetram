@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useApp } from '../lib/state.jsx';
+import { cleanAiText } from '../lib/format.js';
 import { Icon } from './ui.jsx';
 
 const STORAGE_KEY_ACTIVE = 'ks_chat_active';
@@ -271,25 +272,7 @@ export default function ChatWidget() {
                   </div>
                 ) : (
                   <div key={i} className="bubble-ai col g8" style={m.error ? { color: 'var(--bad)' } : undefined}>
-                    <span style={{ lineHeight: 1.55 }}>{m.text}</span>
-                    {m.evidence?.length > 0 && (
-                      <span className="row g6 wrap">
-                        {m.evidence.map((e) => (
-                          <span key={e} className="tag">
-                            {e}
-                          </span>
-                        ))}
-                      </span>
-                    )}
-                    {m.source && (
-                      <span className="s11 muted">
-                        {m.source === 'gemini'
-                          ? 'Gemini AI · verified against evidence'
-                          : m.source === 'llm'
-                          ? 'AI · verified against evidence'
-                          : 'Template answer from evidence record'}
-                      </span>
-                    )}
+                    <span style={{ lineHeight: 1.55 }}>{cleanAiText(m.text)}</span>
                   </div>
                 )
               )}

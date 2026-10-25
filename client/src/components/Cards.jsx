@@ -12,7 +12,7 @@ export function PickCard({ p, i, selected, compared, onCompare, onClick }) {
       <div className="row sb"><span className="tag acc" title={p.rule}><Icon n={p.icon} s={12} />{p.label}</span>
         <button className="row g4 s12 muted" onClick={(e) => { e.stopPropagation(); onCompare?.(); }} aria-pressed={compared} title="Add to compare"><span className={`check ${compared ? 'on' : ''}`} style={{ width: 16, height: 16 }}>{compared && <Icon n="check-line" s={11} />}</span>{i + 1}</button></div>
       <div className="b s14" style={{ lineHeight: 1.3, minHeight: 36 }}>H{i + 1} in {p.locality}<div className="s12 muted" style={{ fontWeight: 400 }}>rent ₹{p.rent}/sq ft · {p.confidence} confidence</div></div>
-      <div className="row g8"><Tier t={p.tier} /><div className="col"><span className="s11 muted">Expected profit / yr</span><span className="price-lg num" style={{ color: 'var(--accent2)' }}>{inr(p.profit.exp)}</span></div></div>
+      <div className="row g8"><Tier t={p.tier} /><div className="col"><span className="s11 muted">Exp profit / yr</span><span className="price-lg num" style={{ color: 'var(--accent2)' }}>{inr(p.profit.exp)}</span></div></div>
       <div className="col g4"><div className="row sb s11 muted"><span>P10 <b className="num">{inr(p.revenue.p10)}</b></span><span>P90 <b className="num">{inr(p.revenue.p90)}</b></span></div><RangeBar {...p.revenue} /></div>
       <div className="row sb s12"><span className="muted">Stress tests</span><span className="b">{p.stress.passes} of 4 pass</span></div>
       <div className="row sb s12"><span className="muted">Cannibalisation</span><span className="b">{p.cannibalisation ? `${(p.cannibalisation.ratio * 100).toFixed(1)}%` : 'No own stores'}</span></div>
@@ -79,10 +79,23 @@ export function ShopCard({ s, i, square, catInfo, saved, onSave }) {
 }
 
 export function SimilarRow({ s, onOpen, children }) {
+  const expProfit = s.profit?.exp ?? s.profit?.p50 ?? 0;
   return (
     <div className="row g12 as" style={{ cursor: 'pointer' }} onClick={onOpen} role="link" tabIndex={0}>
-      <div style={{ width: 168, height: 96, borderRadius: 12, overflow: 'hidden', flex: 'none', position: 'relative' }}>{children}<span className="tag" style={{ position: 'absolute', right: 6, bottom: 6, background: 'var(--bg)', zIndex: 600 }}>{km(s.distKm)}</span></div>
-      <div className="col g4 f1"><span className="b s14" style={{ lineHeight: 1.3 }}>{s.locality}</span><span className="s12 muted">Expected <b className="price-md num" style={{ color: 'var(--accent2)' }}>{inr(s.profit.exp)}</b>/yr · rent <b className="num" style={{ fontSize: 13 }}>₹{s.rent}</b></span><span className="row g6"><Tier t={s.tier} /><span className="s12 muted">{s.tier === 'A' ? 'Stays profitable at P10' : s.tier === 'B' ? 'Profitable on average' : 'Loss-making on average'}</span></span></div>
+      <div style={{ width: 168, height: 96, borderRadius: 12, overflow: 'hidden', flex: 'none', position: 'relative' }}>
+        {children}
+        <span className="tag" style={{ position: 'absolute', right: 6, bottom: 6, background: 'var(--bg)', zIndex: 600 }}>{km(s.distKm)}</span>
+      </div>
+      <div className="col g4 f1">
+        <span className="b s14" style={{ lineHeight: 1.3, color: 'var(--text)' }}>{s.locality}</span>
+        <span className="s12 muted">
+          Exp profit <b className="num" style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{inr(expProfit)}</b>/yr · rent <b className="num" style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>₹{s.rent}</b>/sq ft
+        </span>
+        <span className="row g6 ac">
+          <Tier t={s.tier} />
+          <span className="s12 muted">{s.tier === 'A' ? 'Stays profitable at P10' : s.tier === 'B' ? 'Profitable on average' : 'Loss-making on average'}</span>
+        </span>
+      </div>
     </div>
   );
 }

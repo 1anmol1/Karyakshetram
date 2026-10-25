@@ -96,6 +96,59 @@ export function ErrorBox({ error, onRetry, compact }) {
   return <EmptyState icon={ic} title={t} text={error.message} action={onRetry && <button className="btn out sm" onClick={onRetry}><Icon n="refresh-line" />Retry</button>} />;
 }
 
+export function AiStreamingText({ text, speed = 14, onComplete }) {
+  const [displayedLength, setDisplayedLength] = useState(0);
+  const [isTyping, setIsTyping] = useState(true);
+
+  useEffect(() => {
+    if (!text) {
+      setDisplayedLength(0);
+      setIsTyping(false);
+      return undefined;
+    }
+
+    setDisplayedLength(0);
+    setIsTyping(true);
+
+    let current = 0;
+    const interval = setInterval(() => {
+      const step = Math.min(3, text.length - current);
+      current += step;
+      setDisplayedLength(current);
+      if (current >= text.length) {
+        clearInterval(interval);
+        setIsTyping(false);
+        onComplete?.();
+      }
+    }, speed);
+
+    return () => clearInterval(interval);
+  }, [text, speed]);
+
+  const displayed = text ? text.slice(0, displayedLength) : '';
+
+  return (
+    <div className="s14" style={{ lineHeight: 1.65, color: 'var(--text)' }}>
+      <span>{displayed}</span>
+      {isTyping && (
+        <span
+          className="ai-cursor"
+          style={{
+            display: 'inline-block',
+            width: 7,
+            height: 15,
+            marginLeft: 4,
+            verticalAlign: 'text-bottom',
+            background: 'var(--accent2)',
+            borderRadius: 2,
+            animation: 'aiBlink 0.7s infinite alternate',
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 const RETAIL_PHOTOS = {
   cafe: [
     'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=600&q=80',

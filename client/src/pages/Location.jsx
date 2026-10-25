@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api, fieldErrors } from '../lib/api.js';
 import { useApp, useAuth, useToast, useApi } from '../lib/state.jsx';
-import { inr, pct, km, n, parseNum } from '../lib/format.js';
+import { inr, pct, km, n, parseNum, cleanAiText } from '../lib/format.js';
 import { Header, Footer, SystemBanners } from '../components/Layout.jsx';
-import { Icon, Tier, Conf, Sim, Kv, RangeBar, Tabs, Field, Modal, Skel, ErrorBox, Photo, Banner } from '../components/ui.jsx';
+import { Icon, Tier, Conf, Sim, Kv, RangeBar, Tabs, Field, Modal, Skel, ErrorBox, Photo, Banner, AiStreamingText } from '../components/ui.jsx';
 import { SimilarRow } from '../components/Cards.jsx';
 import HexMap from '../components/HexMap.jsx';
 
@@ -19,13 +19,13 @@ export default function Location() {
   const { user } = useAuth();
   const toast = useToast();
   const nav = useNavigate();
-  const d = useApi(`/cells/${cellId}?category=${category}`, [category]);
+  const d = useApi(`/cells/${cellId}?category=${category}`, [category, cellId]);
   const hex = useApi(`/cells?category=${category}`, [category]);
   const [ex, setEx] = useState(null);
   const [tab, setTab] = useState('Summary');
   const [ai, setAi] = useState(false);
   const [simFilter, setSimFilter] = useState('all');
-  const sim = useApi(`/cells/${cellId}/similar?category=${category}&filter=${simFilter}`, [category, simFilter]);
+  const sim = useApi(`/cells/${cellId}/similar?category=${category}&filter=${simFilter}`, [category, simFilter, cellId]);
   const [savedId, setSavedId] = useState(null);
   const [modal, setModal] = useState(null);
   const [rent, setRent] = useState(null);
@@ -86,9 +86,9 @@ export default function Location() {
             <HexMap features={hex.data?.features.filter((f) => { const [lo, la] = f.geometry.coordinates[0][0]; return Math.abs(la - site.lat) < 0.04 && Math.abs(lo - site.lon) < 0.045; })} selected={cellId} picks={[{ lat: site.lat, lon: site.lon, n: hexIndex }]} rings={[{ lat: site.lat, lon: site.lon, km: site.catchment.km }]} comps={comps} center={[site.lat, site.lon]} zoom={14} legend={false} controls={true} />
             <span className="tag maptag" style={{ left: 14, top: 14, background: 'var(--bg)', height: 28 }}><Icon n="map-pin-2-line" s={14} />{site.catchment.km} km {catInfo?.name.toLowerCase() || ''} catchment · {comps.length} competitors</span>
           </div>
-          <h1 className="h2">{hexLocationName} <span className="muted s16" style={{ fontWeight: 400 }}>· {pick?.label || 'Location'}</span></h1>
+          <h1 className="h2">{hexLocationName}{pick?.label && pick.label !== 'Location' ? <span className="muted s16" style={{ fontWeight: 400 }}> · {pick.label}</span> : null}</h1>
           <div className="row sb wrap g12">
-            <div className="row g8 wrap">{eligible ? <Tier t={site.tier} /> : <span className="tag bad">Not suitable</span>}{pick && <span className="tag acc"><Icon n={pick.icon} s={12} />{pick.label}</span>}<Conf c={site.confidence} /><Sim /><span className="tag ok" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon n="hexagon-line" s={13} />Hexagon {hexLabel}</span></div>
+            <div className="row g8 wrap">{eligible ? <Tier t={site.tier} /> : <span className="tag bad">Not suitable</span>}{pick && <span className="tag acc"><Icon n={pick.icon} s={12} />{pick.label}</span>}<Conf c={site.confidence} /><Sim /></div>
             <div className="row g8 wrap">
               <button className="btn out" onClick={share}><Icon n="share-forward-line" s={16} />Share</button>
               <button className={`btn ${ai ? 'pri' : 'out'}`} onClick={() => setAi(!ai)} aria-pressed={ai}><Icon n="sparkling-2-line" s={16} c={ai ? '#fff' : 'var(--accent2)'} />AI summary</button>
@@ -102,13 +102,45 @@ export default function Location() {
             <div className="row g8 s13 wrap"><b>{catInfo?.name} · {n(site.area)} sq ft</b><span className="muted">· Scored {new Date(d.data.scoredAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} · model {d.data.modelVersion}{d.data.source !== 'ml' ? ' (placeholder engine)' : ''}</span></div>
             <div className="grid5">
               <Kv k="Revenue P50" v={inr(site.revenue.p50)} sub={`P10 ${inr(site.revenue.p10)} · P90 ${inr(site.revenue.p90)}`} />
-              <Kv k="Expected profit" v={inr(site.profit.exp)} sub="per year" />
+              <Kv k="Exp profit" v={inr(site.profit.exp)} sub="per year" />
               <Kv k="Downside (P10)" v={inr(site.profit.p10)} sub={site.profit.p10 > 0 ? 'still positive' : 'loss in a weak year'} />
               <Kv k="Break-even rent" v={`₹${Math.round(site.breakevenRent)} / sq ft / mo`} sub={`Benchmark ₹${site.rent} / sq ft / mo · Headroom ${site.breakevenRent >= site.rent ? '+' : ''}₹${Math.round(site.breakevenRent - site.rent)}`} />
               <Kv k="Takes from own" v={cn ? inr(cn.takenRs) : '—'} sub={cn ? `${pct(cn.ratio)} of its revenue` : 'No own stores of this category'} />
             </div>
-            {ex?.narrative ? <p className="s14" style={{ lineHeight: 1.6 }}>{ex.narrative}</p> : ex?.error ? <ErrorBox compact error={ex.error} /> : <div className="col g8"><Skel h={12} /><Skel h={12} w="80%" /></div>}
           </div>
+          {ai && (
+            <div className="card pad16 col g12 shadow ai-summary-card" style={{ borderRadius: 16 }}>
+              <div className="row sb ac">
+                <span className="row g8 b s15 ac">
+                  <Icon n="sparkling-fill" s={18} c="var(--accent2)" />
+                  AI summary · {hexLocationName}
+                </span>
+                <button
+                  className="iconbtn"
+                  style={{ width: 28, height: 28 }}
+                  onClick={() => setAi(false)}
+                  title="Close AI summary"
+                  aria-label="Close AI summary"
+                >
+                  <Icon n="close-line" s={16} />
+                </button>
+              </div>
+              {ex?.error ? (
+                <ErrorBox compact error={ex.error} />
+              ) : !ex?.narrative ? (
+                <div className="col g8">
+                  <div className="row g6 ac muted s13">
+                    <Icon n="loader-4-line" className="spin" s={14} c="var(--accent2)" />
+                    <span>Synthesising AI summary from model predictions...</span>
+                  </div>
+                  <Skel h={14} />
+                  <Skel h={14} w="85%" />
+                </div>
+              ) : (
+                <AiStreamingText text={cleanAiText(ex.narrative)} speed={14} />
+              )}
+            </div>
+          )}
           <Tabs items={['Summary', 'Why here', 'Risks', 'Neighbourhood', 'Money']} value={tab} onChange={setTab} />
           {tab === 'Summary' && <div className="row as g16 stack-md">
             <div className="card pad20 col g12 f1"><div className="h4">Revenue range (calibrated 80%)</div>
@@ -174,7 +206,7 @@ export default function Location() {
             <div className="b s15">Similar locations</div>
             {sim.loading && [1, 2, 3, 4].map((i) => <div key={i} className="row g12"><Skel h={96} w={168} style={{ borderRadius: 12 }} /><div className="col g6 f1"><Skel h={14} /><Skel h={12} w="70%" /></div></div>)}
             {sim.error && <ErrorBox compact error={sim.error} onRetry={sim.refetch} />}
-            {sim.data?.similar?.length === 0 && <div className="s13 muted">No similar suitable sites within 8 km for this filter.</div>}
+            {sim.data?.similar?.length === 0 && <div className="s13 muted">No similar locations match this filter.</div>}
             {sim.data?.similar?.map((s) => <SimilarRow key={s.cell} s={s} onOpen={() => nav(`/location/${s.cell}`)}><HexMap features={null} picks={[{ lat: s.lat, lon: s.lon }]} center={[s.lat, s.lon]} zoom={13} controls={false} legend={false} interactive={false} /></SimilarRow>)}
           </>}
         </aside>
@@ -304,24 +336,20 @@ function AiPanel({ cellId, category, ex, onClose }) {
   const [busy, setBusy] = useState(false);
   const ask = async (m) => {
     const t = (m ?? q).trim(); if (!t) return; setQ(''); setBusy(true); setMsgs((x) => [...x, { me: true, text: t }]);
-    try { const r = await api('/chat', { method: 'POST', body: { message: t, category, cellId } }); setMsgs((x) => [...x, { text: r.answer, ev: r.evidence }]); }
+    try { const r = await api('/chat', { method: 'POST', body: { message: t, category, cellId } }); setMsgs((x) => [...x, { text: cleanAiText(r.answer) }]); }
     catch (e) { setMsgs((x) => [...x, { text: e.message, err: true }]); } finally { setBusy(false); }
   };
   return (
-    <div className="card shadow col" style={{ borderRadius: 18 }}>
-      <div className="row sb pad16"><span className="b s16">Ask about this location</span><button className="iconbtn" onClick={onClose} aria-label="Close AI summary"><Icon n="close-line" /></button></div>
+    <div className="card shadow col ai-summary-card" style={{ borderRadius: 18 }}>
+      <div className="row sb pad16"><span className="b s16 row g6 ac"><Icon n="sparkling-fill" s={16} c="var(--accent2)" />Ask about this location</span><button className="iconbtn" onClick={onClose} aria-label="Close AI summary"><Icon n="close-line" /></button></div>
       <div className="col g12" style={{ padding: '0 16px 16px' }}>
-        <Icon n="sparkling-2-line" s={22} c="var(--accent2)" />
-        <p className="s13">Curious about this site? Answers come only from its evidence record.</p>
+        <p className="s13 muted">Curious about this site? Answers come directly from verified model predictions.</p>
         <div className="col g8" style={{ alignItems: 'flex-end' }}>{['Summarise this site', 'What breaks it in the stress tests?', 'At what rent does it stop making money?', 'How much does it take from my stores?'].map((s) => <button key={s} className="chip" onClick={() => ask(s)}>{s}</button>)}</div>
         <div className="divider" />
-        <div className="col g10 s13" style={{ lineHeight: 1.6 }}><b className="s14">Summary</b>{ex?.narrative ? <span>{ex.narrative}</span> : <Skel h={60} />}</div>
-        {ex?.claims && <div className="row g6 wrap">{ex.claims.flatMap((c) => c.evidence).slice(0, 8).map((e) => <span key={e} className="tag">{e}</span>)}</div>}
-        {msgs.map((m, i) => m.me ? <div key={i} className="bubble-me">{m.text}</div> : <div key={i} className="bubble-ai" style={m.err ? { color: 'var(--bad)' } : undefined}>{m.text}{m.ev?.length > 0 && <div className="row g6 wrap" style={{ marginTop: 6 }}>{m.ev.map((e) => <span key={e} className="tag">{e}</span>)}</div>}</div>)}
+        <div className="col g10 s13" style={{ lineHeight: 1.6 }}><b className="s14">Summary</b>{ex?.narrative ? <AiStreamingText text={cleanAiText(ex.narrative)} speed={14} /> : <Skel h={60} />}</div>
+        {msgs.map((m, i) => m.me ? <div key={i} className="bubble-me">{m.text}</div> : <div key={i} className="bubble-ai" style={m.err ? { color: 'var(--bad)' } : undefined}>{m.text}</div>)}
         {busy && <div className="bubble-ai muted row g6"><Icon n="loader-4-line" className="spin" />Thinking…</div>}
-        <div className="s11 muted row g4"><Icon n="shield-check-line" s={12} c="var(--ok)" />{ex?.narrative_source === 'llm' ? 'Validator passed · LLM, temperature 0' : 'Template narrative from evidence (no LLM configured)'}</div>
         <form className="row g8" onSubmit={(e) => { e.preventDefault(); ask(); }}><div className="input f1"><input placeholder="Ask a question…" value={q} onChange={(e) => setQ(e.target.value)} maxLength={500} aria-label="Ask about this location" /></div><button className="iconbtn" disabled={busy} aria-label="Send"><Icon n="send-plane-2-line" s={16} /></button></form>
-        <div className="row jc"><span className="tag"><Icon n="sparkling-2-line" s={12} c="var(--accent2)" />Covers the similar-locations list until closed</span></div>
       </div>
     </div>
   );

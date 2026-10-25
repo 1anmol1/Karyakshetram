@@ -58,7 +58,7 @@ export async function generateGeminiSummary(site, cann, fallback) {
   const systemInstruction = `You are Karyakshetram's AI Commercial Retail Expansion Strategist for Pune & PCMC, Maharashtra.
 Your task is to write a crisp, articulate, high-impact executive summary (2-3 sentences, maximum 85 words) analyzing the commercial viability of a selected retail location.
 Ground your response strictly in the provided data (viability tier, expected profit, downside P10, rent headroom, catchment households, competitor count, stress tests, and cannibalisation).
-Highlight why this site is chosen, its financial upside vs downside risk, and competitive positioning. Do not add generic fluff.`;
+Highlight why this site is chosen, its financial upside vs downside risk, and competitive positioning. Do not add generic fluff. Never mention raw spatial cell hashes or cell IDs (e.g. 8860...); refer to the location strictly by its locality name.`;
 
   const households = site.catchment?.households ? site.catchment.households.toLocaleString('en-IN') : 'N/A';
   const popChange = site.popChange != null ? pct(site.popChange) : 'N/A';
@@ -66,7 +66,7 @@ Highlight why this site is chosen, its financial upside vs downside risk, and co
   const nearestComp = Number.isFinite(site.catchment?.nearestCompetitorKm) ? `${round(site.catchment.nearestCompetitorKm, 1)} km` : 'none nearby';
   const cannText = cann && cann.takenRs ? `Cannibalisation: Takes ${inr(cann.takenRs)}/yr from ${cann.affected || 1} own store(s), net network profit ${inr(cann.netNetworkProfit)}.` : 'No cannibalisation against own store network.';
 
-  const prompt = `Location: ${site.locality || 'Selected site'} (H3 Cell: ${site.cell || ''})
+  const prompt = `Location: ${site.locality || 'Selected site'}
 Category: ${site.category || 'Retail'}
 Viability Tier: Tier ${site.tier} (${site.confidence} confidence)
 Expected Annual Profit: ${inr(site.profit?.exp)}
@@ -83,8 +83,14 @@ Write the executive site summary now:`;
 
   const result = await callGemini(prompt, systemInstruction, 1500);
   if (result) {
+    const clean = result
+      .replace(/\(?\bCell\s+8[0-9a-f]{14}\b\)?/gi, '')
+      .replace(/\(Cell\s*8[0-9a-f]{14}\)/gi, '')
+      .replace(/\b8[0-9a-f]{14}\b/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
     return {
-      narrative: result,
+      narrative: clean,
       claims: fallback.claims || [],
       narrative_source: 'gemini',
     };
@@ -107,7 +113,7 @@ Rules:
 3. If asked about safety/risk, cite the downside (P10) profit and number of stress tests passed.
 4. If asked about cannibalisation, explain the impact on existing stores.
 5. If asked to compare or rank, provide a clear commercial rationale with numbers.
-6. Tone: Authoritative, data-backed, business-focused, and encouraging. Never invent ungrounded data.`;
+6. Tone: Authoritative, data-backed, business-focused, and encouraging. Never invent ungrounded data. Never mention raw spatial cell hashes or cell IDs (e.g. 8860...); refer to sites by name.`;
 
   const sitesContext = sites.map((s, idx) => {
     const site = s.site || s;
@@ -134,8 +140,14 @@ Your expert response:`;
 
   const result = await callGemini(prompt, systemInstruction, 1500);
   if (result) {
+    const clean = result
+      .replace(/\(?\bCell\s+8[0-9a-f]{14}\b\)?/gi, '')
+      .replace(/\(Cell\s*8[0-9a-f]{14}\)/gi, '')
+      .replace(/\b8[0-9a-f]{14}\b/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
     return {
-      answer: result,
+      answer: clean,
       narrative_source: 'gemini',
     };
   }

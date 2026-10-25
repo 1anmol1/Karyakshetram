@@ -16,10 +16,10 @@ export default function Trust() {
   const filteredCategories = useMemo(() => {
     if (!catSearch.trim()) return categories;
     const q = catSearch.toLowerCase();
-    return categories.filter((c) => c.name.toLowerCase().includes(q) || c.key.toLowerCase().includes(q));
+    return categories.filter((c) => c?.name?.toLowerCase().includes(q) || c?.key?.toLowerCase().includes(q));
   }, [categories, catSearch]);
 
-  const activeCatInfo = categories.find((c) => c.key === sel) || categories[0];
+  const activeCatInfo = categories.find((c) => c?.key === sel) || categories[0] || { name: 'Commercial Formats', key: sel || 'grocery', icon: 'apps-2-line' };
 
   return (
     <div className="page">
@@ -162,7 +162,7 @@ export default function Trust() {
         {/* Format assumptions & limitations */}
         <div className="row g16 as stack-md">
           <div className="f1">
-            <Collapse open title={`Assumptions (${activeCatInfo.name.toLowerCase()})`}>
+            <Collapse open title={`Assumptions (${(activeCatInfo?.name || 'Commercial format').toLowerCase()})`}>
               {ev.data && (
                 <div className="s13 muted" style={{ lineHeight: 1.6 }}>
                   {ev.data.assumptions.areaSqft.toLocaleString('en-IN')} sq ft format · Capex {inr(ev.data.assumptions.capex)} · Opex {inr(ev.data.assumptions.opex)}/yr · Gross Margin {Math.round(ev.data.assumptions.margin * 100)}% · Market Rent Range ₹{ev.data.assumptions.rentRange[0]}–{ev.data.assumptions.rentRange[1]}/sq ft/mo · Catchment Radius {ev.data.assumptions.catchmentKm} km

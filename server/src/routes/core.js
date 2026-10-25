@@ -170,16 +170,42 @@ r.get('/cells/:id/similar', asyncH(async (req, res) => {
   if (!base) throw notFound('Location not found');
   const { results } = await ml.scoreAll({ category, assumptions: assumptionsFor(req.user, category) });
   const me = results.find((s) => s.cell === base._id);
+  const myRent = me?.rent || base?.rent || 150;
+  const myExpProfit = me?.profit?.exp || 0;
   const filter = String(req.query.filter || 'all');
-  let list = results.filter((s) => s.cell !== base._id && s.eligible.ok).map((s) => ({ ...s, distKm: distKm(s.lat, s.lon, base.lat, base.lon) })).filter((s) => s.distKm <= 8 && s.distKm >= 0.8);
-  if (filter === 'tierA') list = list.filter((s) => s.tier === 'A');
-  if (filter === 'nearby') list = list.filter((s) => s.distKm <= 3);
-  if (filter === 'lowerRent') list = list.filter((s) => s.rent < me.rent);
-  list.sort((x, y) => Math.abs(x.profit.exp - me.profit.exp) / 1e5 + x.distKm - (Math.abs(y.profit.exp - me.profit.exp) / 1e5 + y.distKm));
-  const lim = Number(req.query.limit || 6); const seen = new Set(); const out = [];
-  for (const s of list) { if (seen.has(s.locality)) continue; seen.add(s.locality); out.push(s); if (out.length >= lim) break; }
-  for (const s of list) { if (out.length >= lim) break; if (!out.includes(s)) out.push(s); }
-  res.json({ similar: out.map(shape) });
+
+  // Include candidate cells across the Pune & PCMC region (distance >= 0.05 km)
+  let candidates = results
+    .filter((s) => s.cell !== base._id && s.eligible.ok)
+    .map((s) => ({ ...s, distKm: distKm(s.lat, s.lon, base.lat, base.lon) }))
+    .filter((s) => s.distKm >= 0.05 && s.distKm <= 16);
+
+  if (candidates.length < 8) {
+    candidates = results
+      .filter((s) => s.cell !== base._id && s.eligible.ok)
+      .map((s) => ({ ...s, distKm: distKm(s.lat, s.lon, base.lat, base.lon) }))
+      .filter((s) => s.distKm >= 0.05);
+  }
+
+  let list = candidates;
+  if (filter === 'tierA') {
+    list = candidates.filter((s) => s.tier === 'A');
+  } else if (filter === 'nearby') {
+    list = candidates.filter((s) => s.distKm <= 5);
+  } else if (filter === 'lowerRent') {
+    list = candidates.filter((s) => s.rent <= myRent);
+  }
+
+  // Sort by commercial similarity: expected profit closeness + spatial proximity
+  list.sort((x, y) => {
+    const scoreX = Math.abs(x.profit.exp - myExpProfit) / 1e5 + x.distKm * 0.35;
+    const scoreY = Math.abs(y.profit.exp - myExpProfit) / 1e5 + y.distKm * 0.35;
+    return scoreX - scoreY;
+  });
+
+  const lim = Math.min(30, Number(req.query.limit || 18));
+  const out = list.slice(0, lim);
+  res.json({ similar: out.map(shape), total: list.length });
 }));
 
 // ---------------- recommend (J1)

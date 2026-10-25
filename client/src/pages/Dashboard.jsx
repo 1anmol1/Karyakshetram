@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useApp, useAuth, useToast } from '../lib/state.jsx';
-import { inr, pct, downloadCsv, n } from '../lib/format.js';
+import { inr, pct, downloadCsv, n, cleanAiText } from '../lib/format.js';
 import { Header, Footer, SystemBanners } from '../components/Layout.jsx';
-import { Icon, Collapse, Tier, Banner, Skel, ErrorBox, EmptyState, Seg, Modal } from '../components/ui.jsx';
+import { Icon, Collapse, Tier, Banner, Skel, ErrorBox, EmptyState, Seg, Modal, AiStreamingText } from '../components/ui.jsx';
 import { PickCard, ShopCard } from '../components/Cards.jsx';
 import HexMap from '../components/HexMap.jsx';
 
@@ -997,7 +997,6 @@ export default function Dashboard() {
                 {rec.data
                   ? `${rec.data.stats?.scored || displayPicks.length} cells scored · ${rec.data.stats?.eligible || displayPicks.length} pass all rules · ${displayPicks.filter((p) => !p.empty).length} labelled picks · ${filters.spacing} km apart`
                   : `${displayPicks.length} labelled picks ready`}
-                {rec.data?.cached && <span className="tag" style={{ marginLeft: 6 }}>Cached results</span>}
                 {rec.data?.source && rec.data.source !== 'ml' && (
                   <span className="tag" style={{ marginLeft: 6 }} title="Placeholder engine until the ML service is linked">Placeholder engine</span>
                 )}
@@ -1088,7 +1087,7 @@ export default function Dashboard() {
                       <th>Strategic Pick</th>
                       <th>Viability Tier</th>
                       <th>Floor Area</th>
-                      <th>Expected Profit (P50)</th>
+                      <th>Exp Profit (P50)</th>
                       <th>Downside (P10)</th>
                       <th>Commercial Rent</th>
                       <th>Break-even Rent</th>
@@ -1206,14 +1205,7 @@ export default function Dashboard() {
               <p className="s13 muted">No site meets your constraints here. Widen the area or relax max rent to get a summary.</p>
             )}
             {summary?.narrative && (
-              <>
-                <p className="s13" style={{ lineHeight: 1.6 }}>{summary.narrative}</p>
-                <div className="row g6 wrap">
-                  {summary.claims?.slice(0, 3).flatMap((c) => c.evidence.slice(0, 1)).map((e) => (
-                    <span key={e} className="tag">{e} {summary.evidence?.items?.find((i) => i.id === e)?.key}</span>
-                  ))}
-                </div>
-              </>
+              <AiStreamingText text={cleanAiText(summary.narrative)} speed={14} />
             )}
           </div>
 
@@ -1957,7 +1949,7 @@ function CityLineGraph({ catInfo, picks, locality, onSelectLocality, onOpenLocat
 
               <div className="grid2 g8 s12">
                 <div className="col g2">
-                  <span className="s11 muted">Expected Profit</span>
+                  <span className="s11 muted">Exp Profit</span>
                   <span className="b num" style={{ color: '#E23B3B' }}>{inr(hoveredPoint.expProfit)}</span>
                 </div>
                 <div className="col g2">
